@@ -1,0 +1,10 @@
+# Dado bruto do TSE — NÃO versionar.
+# O cache bruto guarda o JSON como veio, e o TSE devolve documento de
+# identificação de terceiro: tituloEleitor em toda listagem, cpf no detalhe.
+# Medido em 02/09/2026: 1.779 títulos e 1 CPF em dados/bruto/ depois de
+# uma única coleta de MG.
+dados/
+
+# Python
+__pycache__/
+*.pyc

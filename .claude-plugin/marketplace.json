@@ -1,0 +1,19 @@
+{
+  "name": "compendia-civico",
+  "owner": {
+    "name": "Compendia",
+    "email": "compendia.com.br@gmail.com",
+    "url": "https://compendia.com.br"
+  },
+  "metadata": {
+    "description": "Ferramentas de transparência sobre dado público brasileiro. Coleta local, sem dado embarcado, sem servidor. Uma coleção Compendia.",
+    "version": "0.5.0"
+  },
+  "plugins": [
+    {
+      "name": "vote-melhor",
+      "source": "./plugins/vote-melhor",
+      "description": "Vote Melhor — ficha de candidatura de eleição brasileira a partir do dado oficial do TSE, com fonte e data por campo, frescor da situação do registro e registro de mandato federal. Não classifica, não ordena por mérito e não recomenda voto."
+    }
+  ]
+}
