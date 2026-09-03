@@ -1,3 +1,5 @@
+<img src="../../assets/marca/assinatura-horizontal.svg" alt="Compendia" width="300">
+
 # Vote Melhor
 
 **O "melhor" é sobre a sua decisão, não sobre o candidato.** A ferramenta não escolhe por
@@ -51,3 +53,8 @@ Situação de candidatura muda até perto da eleição: deferido vira indeferido
 a recurso. A base local envelhece. Toda ficha imprime **a data em que aquele campo foi
 coletado**, e quando a base diverge da consulta da hora, as duas aparecem com as duas datas —
 nunca sobrescritas em silêncio, porque a divergência é a informação.
+
+---
+
+<img src="../../assets/marca/simbolo-compendia.svg" alt="" width="12"> © 2026 **Compendia** · [compendia.com.br](https://compendia.com.br)
+· compendia.com.br@gmail.com · +55 34 98430-9000

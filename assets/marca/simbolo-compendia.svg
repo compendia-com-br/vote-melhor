@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Compendia — o marcador. Passagem marcada, com fonte que existe.
+       Cor unica de proposito: e a versao que vira favicon e avatar 16px. -->
+  <path fill="#4A1626" d="
+    M 26,14
+    L 70,14
+    L 70,82
+    L 48,64
+    L 26,82
+    Z" />
+</svg>
