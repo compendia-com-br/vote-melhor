@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Valida o plugin antes de empacotar. Adaptado do testar_plugins.py dos
-compendia-autores: seções de estrutura e frontmatter valem na íntegra; a seção de
+compendia-acervo: seções de estrutura e frontmatter valem na íntegra; a seção de
 corpus saiu e deu lugar aos testes de dado e de guarda.
 
 Certo, vazio e quebrado são três estados. Um validador que passa com o plugin
