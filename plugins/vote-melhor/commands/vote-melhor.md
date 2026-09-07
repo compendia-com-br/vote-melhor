@@ -78,11 +78,23 @@ oficial é a fonte.
 
 **4b. Registro de mandato, quando o candidato for deputado federal ou senador.**
 
+Os dois scripts espelham o mesmo conjunto de argumentos — a regra é qual script chamar,
+não como chamar:
+
 ```bash
+# cargo Deputado Federal -> camara.py
 python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/camara.py" --buscar "<nome>" --uf <UF>
 python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/camara.py" --registro <id>
 python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/camara.py" --cobertura --uf <UF>
+
+# cargo Senador -> senado.py
+python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/senado.py" --buscar "<nome>" --uf <UF>
+python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/senado.py" --registro <codigo>
+python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/senado.py" --cobertura --uf <UF>
 ```
+
+Os demais cargos — deputado estadual, governador, presidente — **não têm fonte de mandato
+nesta ferramenta**. Isso se declara, não se contorna: nunca busque um substituto para o eixo.
 
 Rode `--cobertura` **antes** de mostrar qualquer comparação, e diga o resultado: o eixo de
 mandato cobre uma fatia pequena da cédula, e célula vazia é lida como "sem realização"
