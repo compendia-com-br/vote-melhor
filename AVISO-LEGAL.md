@@ -18,9 +18,12 @@ não protege nada.
 
 ## LGPD
 
-O dado tratado é público, publicado pelo TSE sob CC BY. O coletor descarta CPF e título de
-eleitor na ingestão, antes de tocar o banco, e a verificação em `plugins/vote-melhor/ferramentas/verificar_dados.py`
-valida isso por inspeção do valor — não por nome de campo.
+O dado tratado é público, publicado pelo TSE sob CC BY. Na ingestão, antes de tocar o banco, o
+coletor age em duas camadas: descarta CPF e título de eleitor quando o nome do campo já diz o
+que ele é, e mascara o documento quando ele aparece dentro do valor de outro campo — como um
+CPF embutido no nome de um arquivo anexado. A verificação em
+`plugins/vote-melhor/ferramentas/verificar_dados.py` confere as duas camadas por inspeção do
+valor — não por nome de campo.
 
 ---
 
