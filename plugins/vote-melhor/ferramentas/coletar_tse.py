@@ -64,6 +64,24 @@ ID_ELEICAO = "20322002026"     # de rest/v1/eleicao/ordinarias
 CARGOS_TENTADOS = [1, 3, 5, 6, 7, 8]  # códigos plausíveis de eleição geral
 # -------------------------------------------------------------------------------
 
+# As 27 unidades da federacao MAIS "BR". Medido em 07/09/2026: cargo=1 sob
+# UF=BR devolve 13 candidatos a presidente, e sob MG, DF ou UF inexistente
+# devolve 200 com lista VAZIA. Varrer so as 27 coletaria o pais inteiro sem a
+# eleicao presidencial, e o erro seria invisivel — zeros, nao falha.
+ALVOS = ["AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG",
+         "MS", "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR",
+         "RS", "SC", "SE", "SP", "TO", "BR"]
+
+
+def alvo_mudo(por_cargo):
+    """True quando o alvo devolveu zero em TODOS os cargos.
+
+    E o unico sinal que separa "essa UF nao elege esse cargo" de "a coleta
+    dessa UF falhou calada". Nenhum dos 28 alvos pode ser mudo: as 27 UFs
+    elegem ao menos deputado, e BR elege presidente."""
+    return all(int(n) == 0 for n in por_cargo.values())
+
+
 class BloqueioTSE(Exception):
     pass
 
@@ -220,25 +238,22 @@ def abrir_banco():
     return cx
 
 # --- comandos ----------------------------------------------------------------
-def cmd_listar(uf, pausa, forcar):
+def coletar_alvo(cx, uf, pausa, forcar, imprimir=True):
+    """Coleta os 6 cargos de UM alvo. Devolve {codigo: n_gravados}.
+
+    LEVANTA BloqueioTSE em vez de sair: numa varredura de 28 alvos, sair no
+    primeiro tropeco de rede joga fora tudo o que ja entrou. Quem chama decide.
+    """
     uf = uf.upper()
-    cx = abrir_banco()
-    total = 0
-    print(f"Listagem de {uf} — eleição {ANO} (id {ID_ELEICAO})")
-    print(f"{'cargo':<28} {'cód':>4} {'candidatos':>10} {'tempo':>7} {'tamanho':>9}  origem")
+    por_cargo = {}
     for codigo in CARGOS_TENTADOS:
         caminho = (f"/divulga/rest/v1/candidatura/listar/{ANO}/{uf}/"
                    f"{ID_ELEICAO}/{codigo}/candidatos")
         apelido = f"listar_{ANO}_{uf}_{codigo}"
         t0 = time.time()
-        try:
-            dados, url, de_cache = obter(caminho, apelido, pausa, forcar)
-        except BloqueioTSE as e:
-            print(f"\nERRO: {e}", file=sys.stderr)
-            sys.exit(2)
+        dados, url, de_cache = obter(caminho, apelido, pausa, forcar)
         dt = time.time() - t0
         cands = dados.get("candidatos") or []
-        tam = os.path.getsize(caminho_cache(apelido))
         nome_cargo = "(sem candidato)"
         if cands:
             nome_cargo = (cands[0].get("cargo") or {}).get("nome") or "?"
@@ -257,13 +272,65 @@ def cmd_listar(uf, pausa, forcar):
         cx.execute("INSERT INTO coleta VALUES (?,?,?,?,?)",
                    (quando, f"listar {uf} cargo {codigo}", url, n, int(de_cache)))
         cx.commit()
-        total += n
-        print(f"{nome_cargo:<28} {codigo:>4} {n:>10} {dt:>6.2f}s {tam:>8}B  "
-              f"{'cache' if de_cache else 'rede'}")
+        por_cargo[str(codigo)] = n
+        if imprimir:
+            tam = os.path.getsize(caminho_cache(apelido))
+            print(f"{nome_cargo:<28} {codigo:>4} {n:>10} {dt:>6.2f}s {tam:>8}B  "
+                  f"{'cache' if de_cache else 'rede'}")
+    return por_cargo
+
+def cmd_listar(uf, pausa, forcar):
+    uf = uf.upper()
+    cx = abrir_banco()
+    print(f"Listagem de {uf} — eleição {ANO} (id {ID_ELEICAO})")
+    print(f"{'cargo':<28} {'cód':>4} {'candidatos':>10} {'tempo':>7} {'tamanho':>9}  origem")
+    try:
+        por_cargo = coletar_alvo(cx, uf, pausa, forcar)
+    except BloqueioTSE as e:
+        print(f"\nERRO: {e}", file=sys.stderr)
+        cx.close()
+        sys.exit(2)
+    total = sum(por_cargo.values())
+    if alvo_mudo(por_cargo):
+        print(f"\nATENÇÃO: {uf} devolveu ZERO em todos os cargos. Isso é anomalia, "
+              f"não resultado — toda UF elege ao menos deputado.")
     print(f"\nTotal gravado: {total} candidatos. "
           f"Requisições de rede nesta execução: {_requisicoes}.")
     print(f"Banco: {BANCO}")
     cx.close()
+
+def cmd_pais(pausa, forcar):
+    """Varre os 28 alvos. Falha de um nao derruba os outros."""
+    cx = abrir_banco()
+    print(f"Coleta nacional — eleição {ANO} (id {ID_ELEICAO}) — {len(ALVOS)} alvos")
+    print("BR é a cédula presidencial: cargo 1 só devolve candidato ali.\n")
+    print(f"{'alvo':<6} {'candidatos':>11}  detalhe por cargo")
+    falharam, mudos, total = [], [], 0
+    for uf in ALVOS:
+        try:
+            por_cargo = coletar_alvo(cx, uf, pausa, forcar, imprimir=False)
+        except BloqueioTSE as e:
+            falharam.append((uf, str(e)))
+            print(f"{uf:<6} {'FALHOU':>11}  {e}")
+            continue
+        n = sum(por_cargo.values())
+        total += n
+        if alvo_mudo(por_cargo):
+            mudos.append(uf)
+        detalhe = " ".join(f"{c}:{v}" for c, v in por_cargo.items() if v)
+        print(f"{uf:<6} {n:>11}  {detalhe or '(tudo zero)'}")
+    print(f"\nTotal gravado: {total} candidaturas. "
+          f"Requisições de rede: {_requisicoes}.")
+    print(f"Banco: {BANCO}")
+    if mudos:
+        print(f"\nANOMALIA: {len(mudos)} alvo(s) devolveram zero em todos os cargos: "
+              f"{', '.join(mudos)}. Isso não é resultado — é coleta que falhou calada.")
+    if falharam:
+        print(f"\n{len(falharam)} alvo(s) falharam. Repita só eles:")
+        for uf, _ in falharam:
+            print(f"  python3 coletar_tse.py --listar {uf}")
+    cx.close()
+    return 2 if (falharam or mudos) else 0
 
 def cmd_detalhe(ident, uf, pausa, forcar):
     uf = uf.upper()
@@ -572,6 +639,9 @@ def main():
                    help="diz a idade da base e RECUSA se passou do limite")
     p.add_argument("--eleicoes", action="store_true",
                    help="lista as eleições ordinárias e diz qual está vigente")
+    p.add_argument("--pais", action="store_true",
+                   help="coleta os 28 alvos (27 UFs + BR, a cédula presidencial). "
+                        "Sai 2 se algum alvo falhar ou devolver tudo zero.")
     p.add_argument("--listar", metavar="UF", help="baixa a listagem de todos os cargos da UF")
     p.add_argument("--detalhe", metavar="ID", help="baixa a ficha de UM candidato")
     p.add_argument("--uf", default="MG", help="UF do --detalhe (padrão MG)")
@@ -590,6 +660,8 @@ def main():
         return cmd_frescor(a.frescor, a.uf, a.pausa)
     if a.eleicoes:
         return cmd_eleicoes(a.pausa, a.forcar) or 0
+    if a.pais:
+        return cmd_pais(a.pausa, a.forcar)
     if a.listar:
         cmd_listar(a.listar, a.pausa, a.forcar); return 0
     if a.detalhe:
