@@ -79,7 +79,34 @@ FICHA = [
     ("Total de bens declarado","d:totalDeBens"),
     ("Gasto de campanha",      "d:gastoCampanha"),
     ("Motivo da situação",     "d:motivoSituacao"),
+    ("Registro de mandato",    "m:cargo_nome"),
 ]
+
+# A ausencia se declara por CATEGORIA, nunca em branco. Celula vazia num
+# quadro comparativo e lida como "nao fez nada" — que e uma afirmacao, e uma
+# que esta ferramenta nao pode sustentar.
+COBERTURA_MANDATO = {
+    "DEPUTADO FEDERAL": "Camara dos Deputados — use: camara.py --buscar",
+    "SENADOR": "Senado Federal — use: senado.py --buscar",
+    "GOVERNADOR": "sem fonte de registro de mandato para este cargo",
+    "PRESIDENTE": "sem fonte de registro de mandato para este cargo",
+    "DEPUTADO ESTADUAL": "sem fonte de registro de mandato para este cargo",
+    "DEPUTADO DISTRITAL": "sem fonte de registro de mandato para este cargo",
+}
+SEM_FONTE = "sem fonte de registro de mandato para este cargo"
+
+def cobertura_mandato(cargo):
+    """Fonte do registro de mandato para o cargo, ou o texto de ausência
+    declarada quando o cargo não tem fonte — nunca uma célula em branco.
+    Normaliza acento e caixa dos dois lados com limpar(): "Deputado
+    Distrital" vindo do banco não casa "DEPUTADO DISTRITAL" da tabela sem
+    isso, e a falha cairia calada em SEM_FONTE sem ninguém perceber que
+    caiu por defeito de comparação, e não por desenho."""
+    alvo = limpar(cargo)
+    for chave, fonte in COBERTURA_MANDATO.items():
+        if limpar(chave) == alvo:
+            return fonte
+    return SEM_FONTE
 
 def imprimir_ficha(lst, det):
     if lst is None and det is None:
@@ -91,9 +118,12 @@ def imprimir_ficha(lst, det):
     print("=" * 66)
     for rotulo, chave in FICHA:
         onde, campo = chave.split(":", 1)
-        valor = v(lst if onde == "l" else det, campo)
-        if valor == SEM and onde == "d" and det is None:
-            valor = SEM + " (detalhe não coletado)"
+        if onde == "m":
+            valor = cobertura_mandato(v(lst, campo))
+        else:
+            valor = v(lst if onde == "l" else det, campo)
+            if valor == SEM and onde == "d" and det is None:
+                valor = SEM + " (detalhe não coletado)"
         print(f"{rotulo:<{largura}} : {valor}")
     print("-" * 66)
     print("Fonte e data da coleta")
