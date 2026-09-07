@@ -136,6 +136,9 @@ def cmd_buscar(nome, uf, forcar):
         ip = p.get("IdentificacaoParlamentar", {})
         print(f"  {ip.get('CodigoParlamentar','?'):<8} {ip.get('NomeParlamentar','?'):<28} "
               f"{ip.get('SiglaPartidoParlamentar','?'):<14} {ip.get('UfParlamentar','')}")
+    print()
+    print("  Quem não aparece nesta lista não exerce mandato de senador hoje —")
+    print("  é ausência de fonte, não ausência de realização.")
     return 0
 
 
@@ -208,6 +211,10 @@ def cmd_registro(cod, forcar):
     print(f"  coletado em {time.strftime('%Y-%m-%dT%H:%M:%S%z')}")
     print()
     print("  Este script não pontua, não ordena e não recomenda voto.")
+    print()
+    print("  Este registro existe porque esta pessoa exerce mandato de senador;")
+    print("  quem nunca exerceu não tem este registro — ausência de fonte, não")
+    print("  ausência de realização.")
     print("=" * L)
     return 0
 

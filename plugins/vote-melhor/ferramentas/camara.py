@@ -92,6 +92,9 @@ def cmd_buscar(nome, uf, forcar):
         return 0
     for x in achados:
         print(f"  {x['id']:<8} {x['nome']:<38} {x.get('siglaPartido','?'):<8} {x.get('siglaUf','')}")
+    print()
+    print("  Quem não aparece nesta lista não exerce mandato de deputado federal")
+    print("  hoje — é ausência de fonte, não ausência de realização.")
     return 0
 
 
@@ -145,6 +148,10 @@ def cmd_registro(ident, forcar):
     print()
     print("  Contagem de proposições é VOLUME de autoria, não qualidade nem")
     print("  aprovação. Este script não pontua, não ordena e não recomenda voto.")
+    print()
+    print("  Este registro existe porque esta pessoa exerce mandato de deputado")
+    print("  federal; quem nunca exerceu não tem este registro — ausência de")
+    print("  fonte, não ausência de realização.")
     print("=" * L)
     return 0
 
