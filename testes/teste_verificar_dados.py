@@ -4,10 +4,11 @@
 Um portao que acha zero e indistinguivel de um portao quebrado. Por isso o
 teste injeta um documento sintetico e EXIGE que a varredura o encontre.
 """
-import os, sqlite3, sys, tempfile
+import contextlib, io, os, sqlite3, sys, tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..",
                                 "plugins", "vote-melhor", "ferramentas"))
 import verificar_dados as vd
+import coletar_tse as ct
 
 falhas = []
 
@@ -89,6 +90,83 @@ with tempfile.TemporaryDirectory() as d:
           any(a["tipo"] == "cpf" and a["coluna"] == "arquivos"
               for a in achados_detalhe),
           f"achados={achados_detalhe}")
+
+# --- CONTROLE DA MASCARA — mascarar_valor(), achatar() e limpar() ----------
+# As tres pecas mais arriscadas do modulo nao tinham teste commitado: a que
+# altera o dado na ingestao (mascarar_valor), o ponto onde a mascara entra
+# de verdade no banco (achatar, em coletar_tse.py) e a que faz UPDATE na
+# base ja gravada (limpar). Uma verificacao manual dessas tres foi descrita
+# em relatorio antes, mas sem codigo commitado ninguem conseguia repetir.
+print("CONTROLE DA MASCARA — mascarar_valor(), achatar() e limpar()")
+
+# 1) numero que NAO e documento sobrevive intacto a mascara ------------------
+# Mesmo valor usado la em cima como "gasto de campanha" no controle
+# negativo — 11 digitos que ja nao batiam o digito verificador de CPF.
+# Confirmado de novo aqui, na propria conta que a mascara usa: se essa
+# premissa quebrar em silencio, o teste abaixo provaria a coisa errada.
+NUM_NAO_DOCUMENTO = "12345678901"
+checa("premissa: numero de controle realmente nao e CPF valido",
+      not vd.cpf_valido(NUM_NAO_DOCUMENTO),
+      "troque NUM_NAO_DOCUMENTO — ele passou a bater o digito verificador")
+texto_protocolo = f"protocolo {NUM_NAO_DOCUMENTO} anexado ao processo"
+resultado = vd.mascarar_valor(texto_protocolo, "id-generico-1")
+checa("numero sem digito verificador (protocolo/id de arquivo) sobrevive intacto",
+      resultado == texto_protocolo, f"resultado={resultado!r}")
+
+# 2) CPF valido num nome de arquivo vira a mascara VISIVEL, nao truncamento --
+NOME_ARQUIVO = f"CertidaoTCUContasIrregularescomImplicacoesEleitorais{CPF_EXEMPLO}.pdf"
+resultado = vd.mascarar_valor(NOME_ARQUIVO, "id-generico-2")
+esperado = NOME_ARQUIVO.replace(CPF_EXEMPLO, vd.MASCARA)
+checa("CPF em nome de arquivo vira a mascara visivel, nao truncamento",
+      resultado == esperado and vd.MASCARA in resultado
+      and CPF_EXEMPLO not in resultado,
+      f"resultado={resultado!r}")
+
+# 3) documento IGUAL ao id da propria linha sobrevive (mesma excecao de varrer) -
+resultado = vd.mascarar_valor(CPF_EXEMPLO, CPF_EXEMPLO)
+checa("documento igual ao id da propria linha sobrevive a mascara",
+      resultado == CPF_EXEMPLO, f"resultado={resultado!r}")
+
+# 4) achatar() (coletar_tse.py) — o ponto onde a mascara entra no banco de fato
+# Este e' o que importa de verdade: nao a conta isolada, mas o lugar onde o
+# coletor de fato aplica a mascara antes de gravar.
+obj_tse = {"arquivos": [{"nome": NOME_ARQUIVO, "tipo": "pdf"}]}
+achatado = ct.achatar(obj_tse, id_linha="130002550464")
+checa("achatar() mascara o CPF dentro da lista serializada antes de gravar",
+      vd.MASCARA in achatado["arquivos"] and CPF_EXEMPLO not in achatado["arquivos"],
+      f"arquivos={achatado['arquivos']!r}")
+
+# 5) limpar() numa base temporaria: relata, altera, e a 2a passagem nao acha nada
+with tempfile.TemporaryDirectory() as d:
+    banco = os.path.join(d, "para_limpar.sqlite")
+    cx = sqlite3.connect(banco)
+    cx.execute("CREATE TABLE candidatura (id TEXT PRIMARY KEY, apelido TEXT)")
+    cx.execute("INSERT INTO candidatura VALUES (?,?)", ("1", CPF_EXEMPLO))
+    cx.commit(); cx.close()
+
+    antes = vd.varrer(banco)
+    checa("antes de --limpar, a varredura acha o documento", len(antes) == 1,
+          f"antes={antes}")
+
+    saida = io.StringIO()
+    with contextlib.redirect_stdout(saida):
+        codigo = vd.limpar(banco)
+    relato = saida.getvalue()
+    checa("limpar() devolve 0 na primeira passagem (ficou limpo)", codigo == 0,
+          f"codigo={codigo}")
+    checa("limpar() nunca imprime o documento completo no proprio relato",
+          CPF_EXEMPLO not in relato,
+          "CPF completo apareceu na saida de --limpar")
+
+    depois = vd.varrer(banco)
+    checa("depois de --limpar, a varredura nao acha mais nada", not depois,
+          f"depois={depois}")
+
+    saida2 = io.StringIO()
+    with contextlib.redirect_stdout(saida2):
+        codigo2 = vd.limpar(banco)
+    checa("segunda passagem de --limpar nao acha nada para mudar (idempotente)",
+          codigo2 == 0, f"codigo2={codigo2}")
 
 print()
 if falhas:
