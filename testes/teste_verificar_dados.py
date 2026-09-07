@@ -5,6 +5,10 @@ Um portao que acha zero e indistinguivel de um portao quebrado. Por isso o
 teste injeta um documento sintetico e EXIGE que a varredura o encontre.
 """
 import contextlib, io, os, sqlite3, sys, tempfile
+
+# Importar modulos do plugin escreve .pyc ao lado deles. Bloqueamos antes de
+# manipular sys.path e fazer os imports.
+sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..",
                                 "plugins", "vote-melhor", "ferramentas"))
 import verificar_dados as vd

@@ -11,6 +11,10 @@
 import argparse, gzip, http.client, json, os, re, ssl, sqlite3, sys, time, zlib
 from datetime import datetime, timezone
 
+# Importar um modulo escreve .pyc ao lado dele. Como este diretorio e copiado
+# inteiro na distribuicao do plugin, nao pode ter artefatos de build. Bloqueamos.
+sys.dont_write_bytecode = True
+
 # Mesmo diretorio: verificar_dados.py reaproveita os digitos verificadores de
 # CPF e de titulo de eleitor, para a mascara de valor nao reescrever a conta
 # (ver comentario acima de PROIBIDOS, mais abaixo).
