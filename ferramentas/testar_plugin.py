@@ -73,7 +73,7 @@ for entrada in mk["plugins"]:
 
     # 4) scripts embarcados e só stdlib
     fer = f"{d}/ferramentas"
-    for arq in ("coletar_tse.py", "consultar.py", "camara.py", "criterios.py"):
+    for arq in ("coletar_tse.py", "consultar.py", "camara.py", "criterios.py", "verificar_dados.py"):
         if not os.path.exists(f"{fer}/{arq}"): f(f"{k}: falta ferramentas/{arq}")
     TERCEIROS = ("requests", "httpx", "pandas", "numpy", "bs4", "lxml", "selenium", "playwright")
     for arq in os.listdir(fer) if os.path.isdir(fer) else []:
