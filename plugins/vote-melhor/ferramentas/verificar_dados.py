@@ -244,8 +244,14 @@ def main():
         return 0
     print(f"ACHOU {len(achados)} documento(s) de identificacao:\n")
     for a_ in achados:
+        # NUNCA a_['valor'] cru aqui: uma ferramenta que denuncia vazamento
+        # nao pode ela mesma ser o vazamento. Medido: essa mesma linha, sem
+        # mascara, botou um CPF real na tela e dali para dentro do relatorio
+        # da tarefa, por inteiro, duas vezes. _prever_mascara mostra so 2
+        # digitos no comeco e 2 no fim — da para LOCALIZAR o achado (tabela,
+        # coluna, id, tipo) sem reconstituir o documento.
         print(f"  {a_['tipo']:>6}  {a_['tabela']}.{a_['coluna']}  "
-              f"id={a_['id']}  {a_['valor']}")
+              f"id={a_['id']}  {_prever_mascara(a_['valor'], a_['id'])}")
     print("\nEsses valores NAO podem sair em ficha, CSV nem pacote do GPT.")
     return 2
 
