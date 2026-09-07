@@ -75,7 +75,7 @@ Redação obrigatória: quem redistribuir modificado **troca o nome**.
   candidatura; não estima intenção de voto, não coleta opinião, não projeta resultado.
   Precisa estar escrito porque ferramenta de comparação é confundida com a de pesquisa.
 - **Não é propaganda eleitoral.** Não classifica, não ordena por mérito, não recomenda.
-  A guarda `hooks/verificar_saida.py` **detecta e sinaliza** isso em código, com controle
+  A guarda `plugins/vote-melhor/hooks/verificar_saida.py` **detecta e sinaliza** isso em código, com controle
   positivo e negativo calibrados, e **barra** quando `VOTE_MELHOR_ESTRITO=1`. O padrão é
   avisar, e o texto público tem que dizer exatamente isso: falso positivo em hook que barra
   faz o usuário desligar o hook, e hook desligado não protege nada. Escrever "bloqueia" seria

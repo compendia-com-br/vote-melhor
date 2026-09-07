@@ -291,7 +291,7 @@ Três seções, cada uma dizendo o que a ferramenta **não** é e por que precis
   docstring dele.
 - **LGPD.** O dado tratado é público, publicado pelo TSE sob CC BY. O coletor descarta CPF
   e título de eleitor na ingestão, antes de tocar o banco, e
-  `ferramentas/verificar_dados.py` prova isso por valor — não por nome de campo.
+  `plugins/vote-melhor/ferramentas/verificar_dados.py` prova isso por valor — não por nome de campo.
 
 Fechar com, literalmente: *"Este documento nomeia riscos. Não é parecer jurídico, e quem
 o escreveu não é advogado. A decisão de publicar e usar é de quem publica e de quem usa."*
