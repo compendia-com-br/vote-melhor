@@ -8,3 +8,7 @@ dados/
 # Python
 __pycache__/
 *.pyc
+
+# Workspace do executor de planos (ledger, briefings, pacotes de revisão).
+# É rascunho: o registro que vale é o histórico do git.
+.superpowers/
