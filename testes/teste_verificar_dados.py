@@ -58,6 +58,38 @@ with tempfile.TemporaryDirectory() as d:
     checa("id de candidato do TSE nao vira documento", not achados,
           f"achados={achados}")
 
+# --- CONTROLE ESTRUTURAL: Achado A e Achado B, medidos na base real --------
+# Achado A (falso positivo): 6 ids de candidatura.id passavam em titulo_valido
+# por coincidencia de checksum — sao a PROPRIA chave primaria da linha, nunca
+# um titulo de eleitor de fato guardado. Achado B (vazamento real): um CPF
+# valido estava embutido no NOME de um arquivo de certidao do TCU, dentro da
+# lista JSON de `detalhe.arquivos` — outra linha, id diferente do CPF.
+print("CONTROLE ESTRUTURAL — Achado A (id igual a chave) e Achado B (documento "
+      "dentro de nome de arquivo)")
+with tempfile.TemporaryDirectory() as d:
+    banco = os.path.join(d, "estrutural.sqlite")
+    cx = sqlite3.connect(banco)
+    # Achado A: o id da linha, por coincidencia, bate o checksum de titulo.
+    ID_QUE_PARECE_TITULO = vd.montar_titulo_sintetico("00000002", "05")
+    cx.execute("CREATE TABLE candidatura (id TEXT PRIMARY KEY, apelido TEXT)")
+    cx.execute("INSERT INTO candidatura VALUES (?,?)",
+               (ID_QUE_PARECE_TITULO, "candidato qualquer"))
+    # Achado B: o CPF de exemplo embutido no nome de um arquivo anexado,
+    # dentro de uma lista serializada — o mesmo formato de detalhe.arquivos.
+    cx.execute("CREATE TABLE detalhe (id TEXT PRIMARY KEY, arquivos TEXT)")
+    cx.execute("INSERT INTO detalhe VALUES (?,?)",
+               ("999", f'["CertidaoTCUContasIrregulares{CPF_EXEMPLO}.pdf"]'))
+    cx.commit(); cx.close()
+    achados = vd.varrer(banco)
+    achados_candidatura = [a for a in achados if a["tabela"] == "candidatura"]
+    achados_detalhe = [a for a in achados if a["tabela"] == "detalhe"]
+    checa("Achado A: valor igual ao proprio id NAO e reportado",
+          not achados_candidatura, f"achados={achados_candidatura}")
+    checa("Achado B: documento dentro de nome de arquivo E reportado",
+          any(a["tipo"] == "cpf" and a["coluna"] == "arquivos"
+              for a in achados_detalhe),
+          f"achados={achados_detalhe}")
+
 print()
 if falhas:
     print(f"REPROVADO: {len(falhas)} controle(s) — {falhas}")

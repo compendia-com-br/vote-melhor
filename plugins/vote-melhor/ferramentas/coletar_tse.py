@@ -11,6 +11,11 @@
 import argparse, gzip, http.client, json, os, re, ssl, sqlite3, sys, time, zlib
 from datetime import datetime, timezone
 
+# Mesmo diretorio: verificar_dados.py reaproveita os digitos verificadores de
+# CPF e de titulo de eleitor, para a mascara de valor nao reescrever a conta
+# (ver comentario acima de PROIBIDOS, mais abaixo).
+import verificar_dados as vd
+
 # ---------------------------------------------------------------------------
 # CABECALHOS — não mexa sem medir. Medido em 02/09/2026 contra o TSE (Akamai):
 #   * A ORDEM importa. urllib.request reordena e normaliza os cabeçalhos e leva 403
@@ -137,16 +142,36 @@ def obter(caminho, apelido, pausa, forcar=False):
 # total apaga a pasta dados/bruto/ depois de montar o banco.
 PROIBIDOS = re.compile(r"cpf|tituloeleitor", re.IGNORECASE)
 
-def achatar(obj, prefixo=""):
+# O filtro acima casa o NOME da chave do JSON — e so isso. Medido em
+# 07/09/2026: uma certidao do TCU anexada a uma candidatura carrega o CPF do
+# requerente dentro do proprio NOME do arquivo (pratica normal de certidao
+# desse tipo), guardado na lista JSON do campo `arquivos`. PROIBIDOS nunca
+# olha para DENTRO do valor, entao esse CPF passava liso. Por isso, alem do
+# filtro por nome, toda string e toda lista gravada passa por
+# mascarar_valor(), que troca por "[documento removido]" qualquer sequencia
+# de 11 a 13 digitos que bata o digito verificador de CPF ou de titulo — a
+# MESMA conta de verificar_dados.py, nunca reescrita aqui. Mascarar todo
+# numero de 11+ digitos destruiria id de arquivo e numero de protocolo
+# legitimos; so o checksum decide.
+#
+# Excecao: uma sequencia IGUAL ao id da propria linha nunca e mascarada — o
+# id publico de candidatura do TSE as vezes cai, por acaso, na faixa de UF de
+# titulo de eleitor, e isso nao e documento (mesma razao estrutural de
+# varrer() em verificar_dados.py).
+
+def achatar(obj, prefixo="", id_linha=None):
     saida = {}
     for chave, valor in obj.items():
         nome = f"{prefixo}{chave}"
         if PROIBIDOS.search(nome):
             continue
         if isinstance(valor, dict):
-            saida.update(achatar(valor, nome + "_"))
+            saida.update(achatar(valor, nome + "_", id_linha))
         elif isinstance(valor, (list, tuple)):
-            saida[nome] = json.dumps(valor, ensure_ascii=False)
+            bruto = json.dumps(valor, ensure_ascii=False)
+            saida[nome] = vd.mascarar_valor(bruto, id_linha)
+        elif isinstance(valor, str):
+            saida[nome] = vd.mascarar_valor(valor, id_linha)
         else:
             saida[nome] = valor
     return saida
@@ -216,8 +241,9 @@ def cmd_listar(uf, pausa, forcar):
         quando = agora()
         linhas = []
         for c in cands:
-            l = achatar(c)
-            l["id"] = str(c.get("id"))
+            id_linha = str(c.get("id"))
+            l = achatar(c, id_linha=id_linha)
+            l["id"] = id_linha
             l["uf_consultada"] = uf
             l["cargo_codigo"] = str(codigo)
             l["coletado_em"] = quando
@@ -246,8 +272,9 @@ def cmd_detalhe(ident, uf, pausa, forcar):
     except BloqueioTSE as e:
         print(f"\nERRO: {e}", file=sys.stderr)
         sys.exit(2)
-    l = achatar(dados)
-    l["id"] = str(dados.get("id") or ident)
+    id_linha = str(dados.get("id") or ident)
+    l = achatar(dados, id_linha=id_linha)
+    l["id"] = id_linha
     l["uf_consultada"] = uf
     l["coletado_em"] = agora()
     l["fonte_url"] = url

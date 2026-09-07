@@ -3,11 +3,15 @@
 
 COMO RODAR:  python3 verificar_dados.py
              python3 verificar_dados.py --banco /caminho/outro.sqlite
+             python3 verificar_dados.py --limpar
 
 O coletor descarta esses dois campos na ingestao, mas o filtro dele casa o
 NOME da chave do JSON. Se o TSE renomear o campo, mudar de posicao, ou
 mandar o numero dentro de outro campo, aquele filtro passa liso — e passar
 liso produz exatamente a mesma saida de funcionar. Este script olha o valor.
+
+--limpar mascara, no banco ja gravado, os documentos que a varredura achar.
+E explicito: sem essa flag o script so relata. Nao mexe em dados/bruto/.
 
 Codigos: 0 limpo · 2 achou documento · 1 erro de uso.
 """
@@ -70,6 +74,51 @@ def montar_titulo_sintetico(sequencial8, uf2):
     return f"{d}{dv1}{dv2}"
 
 
+MASCARA = "[documento removido]"
+
+
+def mascarar_valor(texto, valor_chave):
+    """Troca por MASCARA cada sequencia de 11 a 13 digitos que seja CPF ou
+    titulo de eleitor validos dentro de `texto`, preservando o resto do
+    valor em volta (por exemplo o nome do arquivo, fora do numero).
+
+    Nunca mascara uma sequencia IGUAL a `valor_chave` — mesma regra
+    estrutural usada em varrer(): a chave primaria da propria linha nao e
+    documento, seja qual for a coluna onde o valor aparece. Esta funcao e
+    compartilhada por coletar_tse.py (mascara na ingestao) e por --limpar
+    (mascara o que ja esta gravado), para que as duas rotas apliquem
+    exatamente a mesma regra em vez de reescrever a conta duas vezes."""
+    def trocar(m):
+        seq = m.group(1)
+        if seq == valor_chave:
+            return seq
+        if cpf_valido(seq) or titulo_valido(seq):
+            return MASCARA
+        return seq
+    return SEQ.sub(trocar, str(texto))
+
+
+def _prever_mascara(texto, valor_chave):
+    """Mesmo criterio de mascarar_valor, mas so para IMPRESSAO do --limpar:
+    mostra 2+2 digitos do documento, nunca o numero inteiro na tela, e o
+    resultado e visivelmente diferente da mascara real gravada no banco —
+    para nao confundir a previa do 'antes' com o resultado do 'depois'."""
+    def trocar(m):
+        seq = m.group(1)
+        if seq == valor_chave:
+            return seq
+        if cpf_valido(seq) or titulo_valido(seq):
+            return seq[:2] + "*" * (len(seq) - 4) + seq[-2:]
+        return seq
+    return SEQ.sub(trocar, str(texto))
+
+
+def _identificador_sql(nome):
+    """Escapa nome de tabela/coluna para SQL (mesmo truque de coletar_tse.py:
+    aspas duplas, sem aceitar aspas dentro do nome)."""
+    return '"' + str(nome).replace('"', "") + '"'
+
+
 def varrer(banco):
     """Devolve a lista de achados. Lista vazia = base limpa."""
     achados = []
@@ -84,10 +133,22 @@ def varrer(banco):
         chave = "id" if "id" in cols else cols[0]
         for linha in cx.execute(f"SELECT * FROM {tabela}"):
             reg = dict(zip(cols, linha))
+            valor_chave = str(reg.get(chave))
             for coluna, valor in reg.items():
                 if valor is None:
                     continue
                 for seq in SEQ.findall(str(valor)):
+                    # Um valor IGUAL a chave primaria da propria linha nao e
+                    # documento vazado: e o id publico de candidatura do TSE
+                    # (por exemplo candidatura.id), que este projeto grava e
+                    # imprime de proposito em toda ficha. O teste compara o
+                    # VALOR achado com o VALOR da chave desta linha — nunca
+                    # o NOME da coluna. Filtrar por nome de campo e
+                    # exatamente a fraqueza que este scanner existe para
+                    # cobrir: se ele mesmo passasse a filtrar por nome de
+                    # coluna, herdaria o defeito que veio consertar.
+                    if seq == valor_chave:
+                        continue
                     tipo = ("cpf" if cpf_valido(seq)
                             else "titulo" if titulo_valido(seq) else None)
                     if tipo:
@@ -98,15 +159,83 @@ def varrer(banco):
     return achados
 
 
+def limpar(banco):
+    """Mascara, no banco JA GRAVADO, os documentos que varrer() encontrar.
+
+    Explicito, nunca automatico: so roda quando chamado com --limpar. Antes
+    de alterar qualquer linha, imprime tabela, coluna, id e o valor antes e
+    depois — com o documento tambem oculto na propria impressao, porque
+    tela de terminal e saida, e a regra de nunca imprimir documento inteiro
+    vale igual aqui.
+
+    NUNCA toca dados/bruto/: o JSON como o TSE mandou fica ali de proposito
+    (coletar_tse.py ja documenta que quem quiser sigilo total apaga essa
+    pasta). Por isso, ao terminar, esta funcao sempre avisa que o bruto
+    continua intacto — limpar o banco e deixar o bruto do jeito que estava
+    e meia limpeza, e quem nao for avisado disso acha que acabou.
+    """
+    achados = varrer(banco)
+    if not achados:
+        print("--limpar: a varredura nao achou nada. Nada para mudar.")
+        return 0
+
+    celulas = sorted({(a["tabela"], a["coluna"], a["id"]) for a in achados})
+    cx = sqlite3.connect(banco)
+    cx.text_factory = lambda b: b.decode("utf-8", "replace")
+
+    print(f"--limpar vai alterar {len(celulas)} celula(s):\n")
+    alteradas = 0
+    for tabela, coluna, id_linha in celulas:
+        cols = [r[1] for r in cx.execute(f"PRAGMA table_info({tabela})")]
+        chave = "id" if "id" in cols else cols[0]
+        t_i = _identificador_sql(tabela)
+        c_i = _identificador_sql(coluna)
+        k_i = _identificador_sql(chave)
+        linha = cx.execute(
+            f"SELECT {c_i} FROM {t_i} WHERE {k_i} = ?", (id_linha,)).fetchone()
+        if not linha or linha[0] is None:
+            continue
+        original = str(linha[0])
+        depois = mascarar_valor(original, id_linha)
+        if depois == original:
+            continue
+        antes_tela = _prever_mascara(original, id_linha)
+        print(f"  {tabela}.{coluna}  id={id_linha}")
+        print(f"    antes : {antes_tela}")
+        print(f"    depois: {depois}")
+        cx.execute(f"UPDATE {t_i} SET {c_i} = ? WHERE {k_i} = ?", (depois, id_linha))
+        alteradas += 1
+    cx.commit()
+    cx.close()
+
+    print(f"\n{alteradas} celula(s) alterada(s).")
+    print("Conferindo de novo...")
+    restantes = varrer(banco)
+    if restantes:
+        print(f"AINDA HA {len(restantes)} achado(s) apos a limpeza — nao ficou limpo.")
+    else:
+        print("Varredura de novo: limpo.")
+    print()
+    print("ATENCAO: dados/bruto/ NAO foi tocado. O JSON como o TSE mandou continua")
+    print("la, com o documento original — isto e SO METADE da limpeza. Quem quiser")
+    print("sigilo total precisa apagar dados/bruto/ tambem (coletar_tse.py ja")
+    print("documenta esse caminho, no comentario acima de PROIBIDOS).")
+    return 2 if restantes else 0
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Varre a base atras de CPF e titulo de eleitor, por valor.")
     ap.add_argument("--banco", default=BANCO, help=f"padrao: {BANCO}")
+    ap.add_argument("--limpar", action="store_true",
+                     help="mascara os documentos ja gravados (explicito — sem isso so relata)")
     a = ap.parse_args()
     if not os.path.exists(a.banco):
         print(f"Banco nao encontrado: {a.banco}\n"
               f"Rode antes:  python3 coletar_tse.py --listar <UF>", file=sys.stderr)
         return 1
+    if a.limpar:
+        return limpar(a.banco)
     achados = varrer(a.banco)
     print(f"Varredura por valor em {a.banco}")
     if not achados:
