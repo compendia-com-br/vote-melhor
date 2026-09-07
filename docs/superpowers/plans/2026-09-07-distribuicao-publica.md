@@ -283,8 +283,12 @@ Três seções, cada uma dizendo o que a ferramenta **não** é e por que precis
   eleitor e não projeta resultado. Está escrito porque ferramenta de comparação é
   confundida com a de pesquisa.
 - **Não é propaganda eleitoral.** Não classifica, não pontua, não ordena por mérito e não
-  recomenda voto. Isso não é promessa de conduta: é bloqueado em código pelo hook
-  `hooks/verificar_saida.py`, com controle positivo e negativo calibrados.
+  recomenda voto. Isso não é promessa de conduta: é **detectado e sinalizado** em código
+  pelo hook `hooks/verificar_saida.py`, com controle positivo e negativo calibrados, e
+  **barrado** quando `VOTE_MELHOR_ESTRITO=1` — variável que o próprio documento precisa
+  ensinar, porque hoje ela não aparece em lugar nenhum fora do script. **Não escreva
+  "bloqueia":** o padrão do hook é avisar e deixar passar (exit 0), e a razão está no
+  docstring dele.
 - **LGPD.** O dado tratado é público, publicado pelo TSE sob CC BY. O coletor descarta CPF
   e título de eleitor na ingestão, antes de tocar o banco, e
   `ferramentas/verificar_dados.py` prova isso por valor — não por nome de campo.
