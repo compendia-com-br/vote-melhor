@@ -1,0 +1,29 @@
+Vote Melhor
+Copyright 2026 Compendia (https://compendia.com.br)
+
+Este produto inclui software desenvolvido pela Compendia.
+
+O DADO NAO E NOSSO
+------------------
+Este software nao embarca dado. Ele coleta, na maquina de quem usa, de
+fontes publicas oficiais:
+
+  Tribunal Superior Eleitoral (TSE)
+    DivulgaCandContas - https://divulgacandcontas.tse.jus.br
+    Portal de Dados Abertos - https://dadosabertos.tse.jus.br
+    Licenca: Creative Commons Atribuicao (CC BY)
+
+  Camara dos Deputados
+    Dados Abertos - https://dadosabertos.camara.leg.br
+
+  Senado Federal
+    Dados Abertos - https://legis.senado.leg.br/dadosabertos
+
+A atribuicao a essas fontes e impressa em cada ficha emitida, com a URL e
+a data da coleta.
+
+MARCA
+-----
+"Vote Melhor" e "Compendia" sao marcas da Compendia. A licenca Apache-2.0
+concede direito sobre o codigo e, no paragrafo 6, NAO concede direito de
+marca. Quem redistribuir este software modificado deve troca-lo de nome.

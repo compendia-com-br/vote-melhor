@@ -2,23 +2,41 @@
 
 **Vote Melhor** (`vote-melhor`) — ficha de candidatura a partir do dado oficial do TSE
 
-© 2026 **Compendia**. Todos os direitos reservados.
+© 2026 **Compendia**. Licenciado sob **Apache License, Version 2.0**. O texto integral está
+em [`LICENSE`](../../LICENSE), na raiz do repositório.
 
-Software proprietário. A licença de uso é pessoal e intransferível, concedida ao comprador
-identificado no ato da aquisição. É vedada a redistribuição, revenda, sublicenciamento ou
-publicação do plugin, no todo ou em parte, sem autorização escrita da Compendia.
+## O que a licença permite
 
-## Sobre o dado
+Usar, estudar, modificar, redistribuir e usar comercialmente — de graça, sem pedir
+permissão. Fork, cópia, embutir num produto maior, vender serviço em cima: tudo permitido,
+contanto que a atribuição e o aviso de copyright do `LICENSE` viajem junto.
 
-**Este plugin não embarca dado nenhum.** Ele traz o código que coleta, e o dado nasce na
-máquina de quem usa, na hora em que usa.
+## A reserva de marca — e por que ela existe
 
-O dado coletado vem do Tribunal Superior Eleitoral, pelo sistema DivulgaCandContas e pelo
-Portal de Dados Abertos, publicado sob licença **Creative Commons Atribuição**. A atribuição
-é feita em toda ficha emitida, com a URL e a data da coleta.
+O valor desta ferramenta está na guarda que a impede de recomendar voto. Um fork que remova
+essa guarda e passe a recomendar candidatos é o cenário que esta cláusula existe para impedir
+de acontecer com o nosso nome. O código é livre; o nome não acompanha. Quem redistribuir
+modificado troca o nome.
 
+Em termos práticos: o §6 do Apache-2.0 concede direito sobre o código e, no mesmo parágrafo,
+nega direito sobre marca. "Vote Melhor" e "Compendia" continuam marcas da Compendia mesmo
+depois de um fork. Um fork sem essa guarda pode existir — a licença permite — mas não pode se
+chamar Vote Melhor nem usar o nome Compendia.
+
+## A procedência do dado
+
+**Este software não embarca dado nenhum.** Ele coleta, na máquina de quem usa, de fontes
+públicas oficiais:
+
+- **Tribunal Superior Eleitoral (TSE)** — DivulgaCandContas
+  (https://divulgacandcontas.tse.jus.br) e Portal de Dados Abertos
+  (https://dadosabertos.tse.jus.br), sob licença Creative Commons Atribuição (CC BY).
+- **Câmara dos Deputados** — Dados Abertos (https://dadosabertos.camara.leg.br).
+- **Senado Federal** — Dados Abertos (https://legis.senado.leg.br/dadosabertos).
+
+A atribuição a essas fontes é impressa em cada ficha emitida, com a URL e a data da coleta.
 A propriedade da Compendia é sobre o **código, o método e a forma da ficha** — nunca sobre o
-dado público, que é do TSE e de quem quiser usá-lo.
+dado público, que é do TSE, da Câmara, do Senado e de quem quiser usá-lo.
 
 ## O que este software não faz
 
