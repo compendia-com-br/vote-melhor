@@ -50,17 +50,46 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..",
 sys.argv = ["coletar_tse"]
 import coletar_tse as ct
 
-# Id de candidato com a forma real (12 digitos). Nao e' detalhe cosmetico:
-# cmd_plano decide se o argumento e' UF ou id por `len(str(alvo)) <= 3`, entao
-# um id curto de teste seria lido como UF e o comando iria procurar um pacote
-# proposta_governo_<ano>_999.zip que nao existe.
-ID_CAND = "280001606090"
+# Id de candidato de mentira, com codificacao propria para se denunciar como
+# falso: os digitos sao pares que dao a posicao da letra no alfabeto —
+# 06-01-12-19-15 = F-A-L-S-O. Quem bater o olho e decodificar le "FALSO".
+#
+# O formato obedece a tres amarras, e nenhuma e' cosmetica:
+#   1. SO DIGITOS — cmd_plano acha o PDF no pacote por `re.search(rf"{ANO}
+#      {uf_pacote}(\d+)_", nome)`. Texto nao casa, e a extracao nao acharia
+#      nada.
+#   2. MAIS DE 3 CARACTERES — cmd_plano decide se o argumento e' UF ou id por
+#      `len(str(alvo)) <= 3`. Id curto seria lido como UF, e o comando iria
+#      procurar um pacote proposta_governo_<ano>_<id>.zip que nao existe.
+#   3. NEM 11 NEM 12 DIGITOS — sao os comprimentos de CPF e de titulo de
+#      eleitor. O id REAL do TSE tem 12, e era esse o problema: um numero de
+#      12 digitos num repositorio publico parece documento de gente, mesmo
+#      sendo inventado, e obriga quem le a ir conferir digito verificador
+#      para se tranquilizar. Aqui sao 10, e nao parece nada.
+#
+# O controle logo abaixo nao deixa isto voltar a ser um numero com cara de
+# documento. Ele existe porque comentario lembra e portao recusa.
+ID_CAND = "0601121915"
 
 falhas = []
 def checa(nome, condicao, detalhe):
     print(f"  [{'ok ' if condicao else 'FALHA'}] {nome}: {detalhe}")
     if not condicao:
         falhas.append(nome)
+
+print("FIXTURE — o id de mentira nao pode parecer documento de gente")
+checa("nem 11 nem 12 digitos (CPF e titulo de eleitor)",
+      len(ID_CAND) not in (11, 12), f"len={len(ID_CAND)}")
+checa("so digitos (a regex de cmd_plano exige)", ID_CAND.isdigit(), ID_CAND)
+checa("mais de 3 caracteres (senao cmd_plano le como UF)",
+      len(ID_CAND) > 3, f"len={len(ID_CAND)}")
+checa("nao valida como CPF", ct.vd.cpf_valido(ID_CAND) is False, ID_CAND)
+checa("nao valida como titulo de eleitor",
+      ct.vd.titulo_valido(ID_CAND) is False, ID_CAND)
+checa("decodifica para FALSO (a codificacao esta documentada acima)",
+      "".join(chr(64 + int(ID_CAND[i:i+2])) for i in range(0, len(ID_CAND), 2))
+      == "FALSO", ID_CAND)
+
 
 
 @contextlib.contextmanager
