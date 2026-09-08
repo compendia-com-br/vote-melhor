@@ -48,6 +48,32 @@ Detalhe de uso e o que o plugin não faz, por decisão, em
 
 Depois de instalado, `/vote-melhor` pergunta a UF e conduz o resto.
 
+## Sem Claude Code, direto pela linha de comando
+
+Ferramenta gratuita de utilidade pública é para quem não usa Claude Code também. O comando
+`/vote-melhor` acima só automatiza os mesmos seis scripts — dá para rodá-los sozinho, com
+Python 3 puro, sem instalar nada.
+
+A partir da raiz deste repositório clonado, três passos levam à primeira ficha:
+
+```
+# 1. Baixa o cadastro de candidatos de uma UF (aqui, MG) direto do TSE
+python3 plugins/vote-melhor/ferramentas/coletar_tse.py --listar MG
+
+# 2. Lista quem foi baixado, filtrando por cargo — cada linha traz um id
+python3 plugins/vote-melhor/ferramentas/consultar.py --uf MG --cargo Governador
+
+# 3. Monta a ficha de UM candidato, com o id que apareceu no passo 2
+python3 plugins/vote-melhor/ferramentas/consultar.py --ficha 130002539775
+```
+
+O passo 3 pede `id`, não nome, porque nome de urna se repete entre candidatos e o `id` não.
+Sem o passo 2 não tem como saber o `id` de ninguém.
+
+Cada script tem `--help` com o resto das opções — buscar por nome, coletar o país inteiro
+de uma vez, registro de mandato na Câmara e no Senado. Onde o dado fica está abaixo, em
+"Onde o dado fica".
+
 ## Como montar no ChatGPT
 
 Quem não usa Claude Code pode montar um GPT personalizado com o mesmo dado e a mesma
