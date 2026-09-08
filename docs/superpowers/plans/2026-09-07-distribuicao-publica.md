@@ -1547,7 +1547,26 @@ tarefa 9 — é exatamente o que um estranho vai encontrar.
 Percorrer a §10 da especificação item por item e marcar cada um com a saída que o prova.
 Item sem prova não está pronto, mesmo que pareça.
 
-- [ ] **Passo 4: PORTÃO — tornar o repositório público**
+- [x] ✅ **Passo 4: PORTÃO — tornar o repositório público** — FEITO em 08/09/2026, por volta das 12:28,
+      com confirmação explícita do Thiago no momento. Portões antes de girar a chave, todos
+      medidos: `varrer_historico.py --autoteste` **0** (15/15) · `varrer_historico.py` **0**
+      (124 exclusões declaradas, 0 achados) · `dados/` nunca entrou em commit · nenhuma chave
+      com valor no histórico · `.venv`/`node_modules` não rastreados · nenhum nome de pessoa
+      real nos RED (só termos institucionais).
+
+      **O que este passo NÃO cobria, e quase custou caro.** Tornar público não põe o trabalho
+      na porta de entrada: o `default_branch` é o `main`, e os 54 commits estavam no ramo. Por
+      ~20 minutos o repositório ficou público mostrando o `main` de 06/09 — **sem `LICENSE`,
+      sem `NOTICE`, sem `AVISO-LEGAL.md`**. Repositório público sem licença é, por padrão,
+      *todos os direitos reservados*: o oposto exato do objetivo. O sinal que denunciou foi o
+      `gh repo view --json licenseInfo` devolvendo **nenhuma** — o comando de visibilidade
+      tinha saído 0 e estava certo na letra.
+
+      **Corrigido mesclando o PR #1** (`b60f419`, 12:35 — sete minutos de janela), e só então a API passou a responder
+      `license=Apache-2.0`. **Este plano tinha um buraco:** ia do Passo 4 direto ao Passo 5 e
+      nunca mandava levar o trabalho ao `main`, porque assumiu que já estaria lá. Quem
+      reaproveitar este plano em outro projeto: **o passo de merge vem ANTES do passo de
+      tornar público**, ou a porta de entrada fica errada.
 
 **PEDE CONFIRMAÇÃO EXPLÍCITA DO THIAGO NO MOMENTO.** É o único passo que não volta
 atrás: uma vez público, o conteúdo e todo o histórico de commits podem ter sido clonados
@@ -1615,7 +1634,8 @@ gh repo view compendia-com-br/vote-melhor --json visibility,licenseInfo
 
 Esperado: `"visibility": "PUBLIC"` e `licenseInfo` reconhecendo Apache-2.0.
 
-- [ ] **Passo 5: provar a instalação pelo caminho público**
+- [x] ✅ **Passo 5: provar a instalação pelo caminho público** — FEITO em 08/09/2026 12:39,
+      em parte por comando e em parte pendente de sessão interativa.
 
 ```bash
 gh repo clone compendia-com-br/vote-melhor /tmp/vm-publico && ls /tmp/vm-publico
@@ -1624,6 +1644,27 @@ gh repo clone compendia-com-br/vote-melhor /tmp/vm-publico && ls /tmp/vm-publico
 E, no Claude Code, `/plugin marketplace add compendia-com-br/vote-melhor` seguido de
 `/plugin install vote-melhor@compendia-civico`. **Instalado não é funcionando:** rodar
 `/vote-melhor` e chegar a uma ficha é o que prova.
+
+**Medido em 08/09/2026, do clone público:**
+
+- **Clone anônimo funciona.** Feito sem credencial nenhuma
+  (`GIT_TERMINAL_PROMPT=0`, `credential.helper=` vazio, sem `gh`) — é o teste de "público"
+  que usar `gh` não faz, porque `gh` leva autenticação junto. Veio o merge `b60f419` com
+  `LICENSE` de 202 linhas.
+- **`ferramentas/testar_plugin.py` do clone público: 0 falha(s), 0 aviso(s)** — marketplace
+  `compendia-civico`, 4 skills, 1 comando, 1 agente, `hooks.json` válido, scripts compilam e
+  só stdlib, **dado embarcado: nenhum**, guarda 4/4.
+- **Funcionando, não só instalado:** `consultar.py` do clone público, contra a base local,
+  listou os candidatos a Governador de MG e imprimiu uma **ficha completa** com fonte e data
+  por campo. Duas correções deste plano aparecem na saída: `Gasto de campanha: sem dado`
+  (não "R$ 0,00") e `Registro de mandato: sem fonte de registro de mandato para este cargo`.
+
+**O que ficou pendente, e por quê:** `/plugin marketplace add` e `/plugin install` são
+comandos interativos do Claude Code e não rodam por script — precisam de uma sessão
+interativa. O clone anônimo e o validador cobrem tudo o que antecede a instalação (o
+marketplace é clonado do repositório público, que provamos acessível), mas **a instalação em
+si e o `/vote-melhor` end-to-end continuam por provar**. Instalado não é funcionando, e
+"deve funcionar" não é medido.
 
 ---
 
