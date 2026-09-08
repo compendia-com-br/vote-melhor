@@ -1556,12 +1556,34 @@ e indexados, e voltar a privado não desfaz isso.
 Antes de perguntar, varrer o histórico inteiro — não só a árvore atual:
 
 ```bash
-git log --all --numstat --format="%H" | grep -i "cpf\|titulo\|credencial\|senha\|token" | head
+python3 ferramentas/varrer_historico.py --autoteste
+python3 ferramentas/varrer_historico.py
 git log --all --diff-filter=A --name-only --format="" | sort -u | grep -i "dados/" | head
 ```
 
-Esperado: nada. `dados/` está no `.gitignore` desde antes do primeiro commit, e isso foi
-conferido em 02/09 — mas conferir de novo custa dois comandos e o erro custa um vazamento.
+**Por que não `git log --all --numstat --format="%H" | grep -i "cpf\|titulo\|..."`, que
+estava aqui antes.** Medido na tarefa 10 (07/09/2026): `--numstat` imprime **nome de
+arquivo** e contagem de linhas adicionadas/removidas — nunca o **conteúdo**. O `grep`
+casava o nome do arquivo, não o dado dentro dele: um `candidatos.csv` com CPF de verdade
+passava liso, e um `cpf-antigo.txt` vazio disparava. Era uma varredura que não varria,
+rodando na frente do portão mais caro do plano — e ficou assim porque ninguém tinha
+motivo para desconfiar de um comando que "parecia" varredura. `ferramentas/varrer_historico.py`
+varre o conteúdo de todo blob de todo commit alcançável por qualquer ref, reaproveitando
+`cpf_valido`/`titulo_valido` de `verificar_dados.py`, e nunca imprime o documento por
+extenso. `--autoteste` prova, num repositório git temporário, que ele acharia um
+documento se houvesse um — rode sempre antes de confiar no resultado do repositório real.
+
+**Esperado no repositório real (medido em 07/09/2026): a varredura ACHA e sai 2 — isso não
+é reprovação automática.** 116 achados brutos nesta execução, e nenhum é documento real:
+a maioria (108) é o `id` público de candidatura do TSE colidindo por coincidência com o
+dígito verificador de CPF (11 dígitos) ou título (12 dígitos) — o mesmo `id` que já sai
+impresso em toda ficha, porque não é documento — e o resto é o CPF sintético de exemplo
+(`52998224725`) que a própria `testes/teste_verificar_dados.py` e o plano injetam de
+propósito como controle. Cada achado do script real precisa ser **conferido um a um**
+contra a coluna e o commit que ele aponta antes de seguir — a varredura aponta onde olhar,
+não substitui o olhar. `dados/` está no `.gitignore` desde antes do primeiro commit, e
+isso foi conferido em 02/09 — mas conferir de novo custa um comando e o erro custa um
+vazamento.
 
 Só depois disso, e só com o sim dele:
 
