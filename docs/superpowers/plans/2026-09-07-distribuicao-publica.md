@@ -1363,7 +1363,7 @@ um teste confere que os seis sobreviveram ao corte.
 O primeiro deles é a proibição de responder de memória: toda afirmação
 sobre candidato exige filtrar o CSV com código antes. Sem isso o Code
 Interpreter não serve para nada e o GPT recupera por semelhança, que em
-30 mil linhas devolve o candidato errado com confiança.
+20 mil linhas devolve o candidato errado com confiança.
 
 COMO-PUBLICAR diz para não criar Action, com o motivo medido — 403 nos
 três endpoints do TSE a cliente HTTP comum.
