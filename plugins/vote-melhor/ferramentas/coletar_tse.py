@@ -138,19 +138,46 @@ def caminho_cache(apelido):
     hoje = datetime.now().strftime("%Y-%m-%d")
     return os.path.join(DIR_BRUTO, f"{apelido}__{hoje}.json")
 
+# coletado_em precisa dizer QUANDO O TSE RESPONDEU, nao quando a linha foi
+# gravada no SQLite. Quando o dado vem do cache, o instante da resposta e o
+# instante em que o ARQUIVO foi escrito — nunca "agora", que so descreve a
+# releitura. Duas fontes davam essa data e so uma foi escolhida:
+#   * o NOME do arquivo (caminho_cache monta <apelido>__<AAAA-MM-DD>.json):
+#     so tem o DIA, sem hora. coletado_em sempre guardou timestamp completo
+#     (agora() tem hora, minuto, segundo) — usar so o dia seria trocar um
+#     carimbo errado por um carimbo incompleto, e obrigaria a inventar uma
+#     hora (meio-dia? meia-noite?) que ninguem mediu.
+#   * o MTIME do arquivo: tem dia E hora, no mesmo formato que agora() ja
+#     produz. Risco aceito e declarado: muda se algo ALEM desta funcao
+#     tocar o arquivo depois de escrito. Conferido: nada neste projeto faz
+#     isso — dados/bruto/ so e escrito aqui (obter()), e verificar_dados.py
+#     documenta explicitamente que --limpar NUNCA toca dados/bruto/, so o
+#     banco. Por isso: MTIME.
+def quando_arquivo(caminho):
+    """ISO local, no mesmo formato de agora(), a partir do mtime do arquivo.
+    E a data verdadeira de um dado que veio do cache — ver comentario acima."""
+    ts = os.path.getmtime(caminho)
+    return datetime.fromtimestamp(ts).astimezone().replace(microsecond=0).isoformat()
+
 def obter(caminho, apelido, pausa, forcar=False):
-    """Cache primeiro. Devolve (objeto, url, de_cache)."""
+    """Cache primeiro. Devolve (objeto, url, de_cache, quando_dado).
+
+    quando_dado e sempre o instante em que O TSE RESPONDEU, nunca o instante
+    desta chamada: rede -> agora() (acabamos de receber); cache -> mtime do
+    arquivo (ver comentario acima de quando_arquivo). Quem chama obter() NAO
+    pode usar agora() por conta propria para carimbar o dado — faria de novo
+    o defeito que esta funcao existe para fechar."""
     url = f"https://{HOST}{caminho}"
     arq = caminho_cache(apelido)
     if os.path.exists(arq) and not forcar:
         with open(arq, encoding="utf-8") as f:
-            return json.load(f), url, True
+            return json.load(f), url, True, quando_arquivo(arq)
     _, corpo = buscar(caminho, pausa)
     texto = corpo.decode("utf-8")
     os.makedirs(DIR_BRUTO, exist_ok=True)
     with open(arq, "w", encoding="utf-8") as f:
         f.write(texto)
-    return json.loads(texto), url, False
+    return json.loads(texto), url, False, agora()
 
 # --- achatamento e limpeza ---------------------------------------------------
 # NÃO GRAVAMOS CPF NEM TÍTULO DE ELEITOR.
@@ -251,13 +278,12 @@ def coletar_alvo(cx, uf, pausa, forcar, imprimir=True):
                    f"{ID_ELEICAO}/{codigo}/candidatos")
         apelido = f"listar_{ANO}_{uf}_{codigo}"
         t0 = time.time()
-        dados, url, de_cache = obter(caminho, apelido, pausa, forcar)
+        dados, url, de_cache, quando = obter(caminho, apelido, pausa, forcar)
         dt = time.time() - t0
         cands = dados.get("candidatos") or []
         nome_cargo = "(sem candidato)"
         if cands:
             nome_cargo = (cands[0].get("cargo") or {}).get("nome") or "?"
-        quando = agora()
         linhas = []
         for c in cands:
             id_linha = str(c.get("id"))
@@ -339,7 +365,7 @@ def cmd_detalhe(ident, uf, pausa, forcar):
                f"{ID_ELEICAO}/candidato/{ident}")
     apelido = f"detalhe_{ANO}_{uf}_{ident}"
     try:
-        dados, url, de_cache = obter(caminho, apelido, pausa, forcar)
+        dados, url, de_cache, quando = obter(caminho, apelido, pausa, forcar)
     except BloqueioTSE as e:
         print(f"\nERRO: {e}", file=sys.stderr)
         sys.exit(2)
@@ -347,7 +373,7 @@ def cmd_detalhe(ident, uf, pausa, forcar):
     l = achatar(dados, id_linha=id_linha)
     l["id"] = id_linha
     l["uf_consultada"] = uf
-    l["coletado_em"] = agora()
+    l["coletado_em"] = quando
     l["fonte_url"] = url
     gravar(cx, "detalhe", [l])
     cx.execute("INSERT INTO coleta VALUES (?,?,?,?,?)",
@@ -405,6 +431,188 @@ def cmd_idade(_pausa=None, _forcar=None):
     cx.close(); return 0
 
 
+# --- reparo de datas -----------------------------------------------------------
+# O defeito: ANTES desta correcao, coletar_alvo() e cmd_detalhe() carimbavam
+# coletado_em (e coleta.quando — MESMA variavel `quando`) com agora() mesmo
+# quando obter() vinha do CACHE. O carimbo dizia "agora" para um dado que
+# podia ter horas de idade. Medido em 07/09/2026: a base inteira (20.005
+# linhas de candidatura) carimbada num intervalo de 3 segundos, enquanto o
+# arquivo bruto correspondente foi escrito antes — a coleta de um pais
+# inteiro nao acontece em 3 segundos; a base so mentiu que sim.
+#
+# A correcao em obter() so vale PARA A FRENTE. O que ja esta gravado precisa
+# de reparo explicito — mesmo padrao de verificar_dados.py --limpar: relata
+# ANTES de alterar, nunca em silencio, e diz o que mudou.
+#
+# Reparado: candidatura.coletado_em, detalhe.coletado_em E coleta.quando —
+# --idade le coleta.quando, nao candidatura.coletado_em. Corrigir uma tabela
+# e deixar a outra mentindo quebraria --idade sem que nada aqui acusasse.
+#
+# COMO se acha o valor certo de uma linha ja gravada: o DIA do carimbo
+# errado e confiavel (agora() e quando_arquivo() sempre caem no mesmo dia,
+# porque caminho_cache() usa "hoje" tanto para nomear o arquivo na escrita
+# quanto para acha-lo na leitura — so a HORA dentro do dia mente). Por isso
+# o reparo usa esse dia para achar o arquivo de cache exato e le o mtime
+# dele. Se o arquivo de dados/bruto/ ja foi apagado (por exemplo, sigilo
+# total — coletar_tse.py documenta esse caminho acima de PROIBIDOS), a
+# linha fica SEM_ARQUIVO: relatada, nunca adivinhada.
+
+def apelido_listar(uf, cargo):
+    return f"listar_{ANO}_{uf}_{cargo}"
+
+def apelido_detalhe(uf, ident):
+    return f"detalhe_{ANO}_{uf}_{ident}"
+
+def tabela_existe(cx, nome):
+    return cx.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+        (nome,)).fetchone() is not None
+
+def quando_correto_de(apelido, carimbo_atual):
+    """O coletado_em CORRETO para este apelido, lido do arquivo de cache do
+    MESMO DIA do carimbo atual (o dia e confiavel — ver comentario acima).
+    None = arquivo bruto nao existe mais: nao reparavel, nunca adivinhado."""
+    dia = (carimbo_atual or "")[:10]
+    if len(dia) != 10:
+        return None
+    caminho = os.path.join(DIR_BRUTO, f"{apelido}__{dia}.json")
+    if not os.path.exists(caminho):
+        return None
+    return quando_arquivo(caminho)
+
+def escanear_datas(cx):
+    """Devolve (grupos, log, sem_arquivo) — nunca altera o banco.
+
+    grupos: candidatura/detalhe agrupados por (uf, cargo-ou-id, coletado_em)
+    — toda linha de UMA chamada listar/detalhe carimba o MESMO coletado_em,
+    entao reparar por grupo (nao linha a linha) mantem o relatorio legivel.
+    log: coleta.quando, linha a linha (rowid) — e um LOG, o mesmo alvo pode
+    ter uma entrada por dia diferente ao longo do tempo.
+    sem_arquivo: grupos cujo arquivo de cache sumiu — fora da conta de
+    'corrigido', para nunca virar acerto por omissao.
+    """
+    grupos, log, sem_arquivo = [], [], []
+
+    for uf, cargo, atual, n in cx.execute(
+            "SELECT uf_consultada, cargo_codigo, coletado_em, COUNT(*) FROM candidatura "
+            "GROUP BY uf_consultada, cargo_codigo, coletado_em"):
+        apelido = apelido_listar(uf, cargo)
+        correto = quando_correto_de(apelido, atual)
+        item = {"tabela": "candidatura", "apelido": apelido,
+                "where_sql": "uf_consultada = ? AND cargo_codigo = ? AND coletado_em = ?",
+                "where_val": (uf, cargo, atual), "n": n, "atual": atual, "correto": correto}
+        if correto is None:
+            sem_arquivo.append(item)
+        elif correto != atual:
+            grupos.append(item)
+
+    if tabela_existe(cx, "detalhe"):
+        for uf, ident, atual in cx.execute(
+                "SELECT uf_consultada, id, coletado_em FROM detalhe"):
+            apelido = apelido_detalhe(uf, ident)
+            correto = quando_correto_de(apelido, atual)
+            item = {"tabela": "detalhe", "apelido": apelido,
+                    "where_sql": "uf_consultada = ? AND id = ?",
+                    "where_val": (uf, ident), "n": 1, "atual": atual, "correto": correto}
+            if correto is None:
+                sem_arquivo.append(item)
+            elif correto != atual:
+                grupos.append(item)
+
+    for rid, alvo, atual in cx.execute("SELECT rowid, alvo, quando FROM coleta"):
+        m = re.match(r"^listar (\S+) cargo (\d+)$", alvo or "")
+        if not m:
+            continue  # "detalhe <id>" e "eleicoes_ordinarias": fora do escopo
+                      # medido (candidatura e' quem tem as 20.005 linhas erradas)
+        apelido = apelido_listar(m.group(1), m.group(2))
+        correto = quando_correto_de(apelido, atual)
+        if correto is not None and correto != atual:
+            log.append({"rowid": rid, "apelido": apelido, "atual": atual, "correto": correto})
+
+    return grupos, log, sem_arquivo
+
+def reparar_datas(banco, aplicar):
+    """Corrige coletado_em/coleta.quando gravados com o defeito acima.
+
+    Sem `aplicar`, so relata — nunca altera o banco. Mesmo padrao de
+    verificar_dados.py --limpar: relata ANTES de alterar, nunca em
+    silencio, diz o que mudou, e confere de novo depois de aplicar.
+
+    Codigos: 0 nada a corrigir, ou tudo corrigido e confirmado na
+    reconferencia · 2 sem --aplicar havendo o que corrigir, ou sobrou algo
+    sem arquivo de cache (nao reparavel) apos aplicar.
+    """
+    cx = sqlite3.connect(banco)
+    grupos, log, sem_arquivo = escanear_datas(cx)
+
+    if not grupos and not log:
+        print("--reparar-datas: nenhum carimbo errado encontrado. Nada para mudar.")
+        cx.close()
+        if sem_arquivo:
+            # Repetir isso a cada chamada e de proposito: o gap (arquivo
+            # sumido) nao desaparece so porque nao ha mais nada NOVO para
+            # corrigir. "Nada para mudar" nao pode virar "esta tudo certo".
+            print(f"\n{len(sem_arquivo)} grupo(s) continuam SEM arquivo de cache — "
+                  f"nao entram nesta conta porque ja foram avisados antes, mas "
+                  f"continuam com coletado_em errado.")
+            for item in sem_arquivo:
+                print(f"  {item['tabela']:<11} {item['apelido']:<26} {item['n']:>6} linha(s)")
+            return 2
+        return 0
+
+    total_linhas = sum(g["n"] for g in grupos)
+    print(f"--reparar-datas {'vai corrigir' if aplicar else 'encontrou'} "
+          f"{len(grupos)} grupo(s) de candidatura/detalhe ({total_linhas} linha(s)) "
+          f"e {len(log)} entrada(s) do log de coleta:\n")
+    for g in grupos:
+        print(f"  {g['tabela']:<11} {g['apelido']:<26} {g['n']:>6} linha(s)  "
+              f"{g['atual']}  ->  {g['correto']}")
+    for item in log:
+        print(f"  coleta      {item['apelido']:<26} {'1':>6} linha(s)  "
+              f"{item['atual']}  ->  {item['correto']}  (rowid={item['rowid']})")
+
+    if sem_arquivo:
+        print(f"\n{len(sem_arquivo)} grupo(s) SEM arquivo de cache correspondente — "
+              f"NAO reparados (nunca adivinhados):")
+        for item in sem_arquivo:
+            print(f"  {item['tabela']:<11} {item['apelido']:<26} {item['n']:>6} linha(s)")
+
+    if not aplicar:
+        print("\nSem --aplicar: nada foi alterado. Repita com --aplicar para gravar.")
+        cx.close()
+        return 2
+
+    for g in grupos:
+        cx.execute(f"UPDATE {g['tabela']} SET coletado_em = ? WHERE {g['where_sql']}",
+                   (g["correto"],) + g["where_val"])
+    for item in log:
+        cx.execute("UPDATE coleta SET quando = ? WHERE rowid = ?",
+                   (item["correto"], item["rowid"]))
+    cx.commit()
+    cx.close()
+
+    print(f"\n{total_linhas} linha(s) de candidatura/detalhe corrigida(s), "
+          f"{len(log)} entrada(s) de coleta corrigida(s).")
+    print("Conferindo de novo...")
+    cx = sqlite3.connect(banco)
+    grupos2, log2, _sem2 = escanear_datas(cx)
+    cx.close()
+    if grupos2 or log2:
+        print(f"AINDA HA {len(grupos2)} grupo(s) e {len(log2)} entrada(s) de log "
+              f"errados apos o reparo — nao ficou correto.")
+        return 2
+    print("Conferencia de novo: nenhuma data reparavel continua errada.")
+    if sem_arquivo:
+        print(f"\n{len(sem_arquivo)} grupo(s) continuam SEM arquivo de cache — o "
+              f"coletado_em deles NAO foi tocado, e continua dizendo o instante da "
+              f"gravacao, nao o da resposta do TSE.")
+        return 2
+    return 0
+
+def cmd_reparar_datas(aplicar):
+    return reparar_datas(BANCO, aplicar)
+
+
 def cmd_frescor(ident, uf, pausa, forcar=True):
     """Compara a situacao gravada com a situacao da hora, e mostra as DUAS."""
     uf = uf.upper()
@@ -420,14 +628,20 @@ def cmd_frescor(ident, uf, pausa, forcar=True):
     caminho = (f"/divulga/rest/v1/candidatura/buscar/{ANO}/{uf}/"
                f"{ID_ELEICAO}/candidato/{ident}")
     try:
-        dados, url, de_cache = obter(caminho, f"frescor_{ANO}_{uf}_{ident}", pausa, forcar)
+        dados, url, de_cache, quando_ag = obter(
+            caminho, f"frescor_{ANO}_{uf}_{ident}", pausa, forcar)
     except BloqueioTSE as e:
         print(f"\nERRO: {e}", file=sys.stderr)
         cx.close(); sys.exit(2)
 
     nome  = dados.get("nomeUrna") or dados.get("nomeCompleto") or "sem dado"
     ag    = dados.get("descricaoSituacao") or "sem dado"
-    quando_ag = agora()
+    # forcar=True por padrao (assinatura acima): --frescor pede a situacao
+    # DA HORA de proposito, entao de_cache aqui deveria ser sempre False e
+    # quando_ag deveria ser sempre agora(). Se um dia alguem chamar com
+    # forcar=False, quando_ag continua correto (mtime do cache), porque vem
+    # do mesmo obter() que candidatura/detalhe usam — nao ha calculo em
+    # duplicata para divergir.
 
     L = 66
     print("=" * L)
@@ -516,8 +730,13 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
         os.makedirs(DIR_BRUTO, exist_ok=True)
         open(zipe, "wb").write(dados)
         print(f"  {len(dados):,} bytes".replace(",", "."))
+        quando_zip = agora()
     else:
         print(f"Pacote ja em disco: {zipe}")
+        # Mesmo defeito de coletar_alvo(), mesma correcao: o pacote pode
+        # estar em disco de uma execucao de dias atras. "coletado em" tem
+        # que dizer quando o CDN respondeu, nao quando esta chamada rodou.
+        quando_zip = quando_arquivo(zipe)
 
     z = zipfile.ZipFile(zipe)
     mapa = {}
@@ -578,7 +797,7 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
         print(f"  arquivo: {x}")
         print(f"  tamanho: {tam:,} bytes".replace(",", "."))
     print(f"  fonte  : https://{HOST_CDN}{CAMINHO_PLANOS.format(ano=ANO, uf=uf_pacote)}")
-    print(f"  coletado em {agora()}")
+    print(f"  coletado em {quando_zip}")
     print()
     print("  O conteudo e PROMESSA DE CAMPANHA, nao registro oficial de fato.")
     print("  E fato que o documento foi protocolado; o que esta escrito nele e o")
@@ -594,8 +813,8 @@ def cmd_eleicoes(pausa, forcar=False):
     O id NAO e derivavel do ano: 2016 tem id 2, 2014 tem 680, 2026 tem
     20322002026. Deduzir aqui e errar com confianca.
     """
-    dados, url, de_cache = obter("/divulga/rest/v1/eleicao/ordinarias",
-                                 "eleicoes_ordinarias", pausa, forcar)
+    dados, url, de_cache, _quando = obter("/divulga/rest/v1/eleicao/ordinarias",
+                                          "eleicoes_ordinarias", pausa, forcar)
     itens = dados if isinstance(dados, list) else dados.get("eleicoes", [])
     hoje = datetime.now().strftime("%Y-%m-%d")
     print(f"Eleições ordinárias conhecidas pelo TSE (hoje: {hoje})")
@@ -637,6 +856,10 @@ def main():
                    help="compara a situação gravada com a situação da hora")
     p.add_argument("--idade", action="store_true",
                    help="diz a idade da base e RECUSA se passou do limite")
+    p.add_argument("--reparar-datas", action="store_true",
+                   help=("mostra coletado_em/coleta.quando gravados com o carimbo da "
+                         "GRAVACAO em vez do da resposta do TSE (bug de cache corrigido "
+                         "em 07/09/2026). Sozinho, so relata. Some com --aplicar para gravar."))
     p.add_argument("--eleicoes", action="store_true",
                    help="lista as eleições ordinárias e diz qual está vigente")
     p.add_argument("--pais", action="store_true",
@@ -648,10 +871,14 @@ def main():
     p.add_argument("--pausa", type=float, default=1.5,
                    help="segundos entre requisições (padrão 1.5; não baixe disso)")
     p.add_argument("--forcar", action="store_true", help="ignora o cache do dia")
+    p.add_argument("--aplicar", action="store_true",
+                   help="usado com --reparar-datas: grava a correcao (sem ele, so relata)")
     a = p.parse_args()
     if a.pausa < 1.5:
         print("AVISO: pausa abaixo de 1,5 s. Servidor público. Elevando para 1,5 s.")
         a.pausa = 1.5
+    if a.reparar_datas:
+        return cmd_reparar_datas(a.aplicar)
     if a.idade:
         return cmd_idade()
     if a.plano:
