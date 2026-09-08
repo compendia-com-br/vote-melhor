@@ -111,8 +111,11 @@ por mérito e não recomenda voto. Texto completo, com o porquê de cada guarda,
 
 ## Fontes e atribuição
 
-O dado vem de três fontes públicas oficiais, e a atribuição a cada uma é impressa em cada
-ficha emitida, com a URL e a data da coleta:
+O dado vem de três fontes públicas oficiais. A atribuição ao TSE (URL e data da coleta) é
+impressa em toda ficha de candidatura emitida (`consultar.py --ficha`). A atribuição à
+Câmara e ao Senado aparece quando o registro de mandato federal é consultado
+(`camara.py --registro` / `senado.py --registro`), cada um com a própria URL e data da
+coleta:
 
 - **Tribunal Superior Eleitoral (TSE)** — DivulgaCandContas e Portal de Dados Abertos, sob
   licença Creative Commons Atribuição (CC BY).

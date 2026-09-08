@@ -34,7 +34,10 @@ públicas oficiais:
 - **Câmara dos Deputados** — Dados Abertos (https://dadosabertos.camara.leg.br).
 - **Senado Federal** — Dados Abertos (https://legis.senado.leg.br/dadosabertos).
 
-A atribuição a essas fontes é impressa em cada ficha emitida, com a URL e a data da coleta.
+A atribuição ao TSE (URL e data da coleta) é impressa em toda ficha de candidatura emitida
+(`consultar.py --ficha`). A atribuição à Câmara e ao Senado aparece quando o registro de
+mandato federal é consultado (`camara.py --registro` / `senado.py --registro`), cada um com
+a própria URL e data da coleta.
 A propriedade da Compendia é sobre o **código, o método e a forma da ficha** — nunca sobre o
 dado público, que é do TSE, da Câmara, do Senado e de quem quiser usá-lo.
 

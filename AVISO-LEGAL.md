@@ -10,11 +10,13 @@ ferramenta de comparação é confundida com a de pesquisa.
 ## Não é propaganda eleitoral
 
 Não classifica, não pontua, não ordena por mérito e não recomenda voto. Isso não é promessa
-de conduta: o hook `plugins/vote-melhor/hooks/verificar_saida.py` fiscaliza a saída, com controle positivo e
-negativo calibrados. Por padrão ele **detecta e avisa** — imprime o achado e deixa passar.
-Defina `VOTE_MELHOR_ESTRITO=1` para que ele **barre** a saída em vez de só avisar. O padrão
-é avisar porque falso positivo em hook que barra leva a desligar o hook, e hook desligado
-não protege nada.
+de conduta: o hook `plugins/vote-melhor/hooks/verificar_saida.py` fiscaliza o que é **gravado
+em arquivo** (dispara em `Write` e `Edit`), com controle positivo e negativo calibrados. Ele
+**não** lê a ficha que aparece na conversa nem a saída impressa de um comando no terminal —
+só o texto que vira arquivo, como um dossiê salvo em disco. Por padrão ele **detecta e
+avisa** — imprime o achado e deixa passar. Defina `VOTE_MELHOR_ESTRITO=1` para que ele
+**barre** a gravação em vez de só avisar. O padrão é avisar porque falso positivo em hook que
+barra leva a desligar o hook, e hook desligado não protege nada.
 
 ## LGPD
 

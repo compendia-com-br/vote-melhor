@@ -19,8 +19,11 @@ fontes publicas oficiais:
   Senado Federal
     Dados Abertos - https://legis.senado.leg.br/dadosabertos
 
-A atribuicao a essas fontes e impressa em cada ficha emitida, com a URL e
-a data da coleta.
+A atribuicao ao TSE (URL e data da coleta) e impressa em toda ficha de
+candidatura emitida (consultar.py --ficha). A atribuicao a Camara e ao
+Senado aparece quando o registro de mandato federal e consultado
+(camara.py --registro / senado.py --registro), cada um com a propria URL
+e data da coleta.
 
 MARCA
 -----
