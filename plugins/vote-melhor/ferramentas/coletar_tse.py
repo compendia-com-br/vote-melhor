@@ -9,7 +9,7 @@
 #   python3 plugins/vote-melhor/ferramentas/coletar_tse.py --detalhe 123456789
 # CUIDADO: servidor público. Há pausa obrigatória entre requisições e cache em disco.
 
-import argparse, gzip, http.client, json, os, re, ssl, sqlite3, sys, time, zlib
+import argparse, glob, gzip, http.client, json, os, re, ssl, sqlite3, sys, time, zlib
 from datetime import datetime, timezone
 
 # Importar um modulo escreve .pyc ao lado dele. Como este diretorio e copiado
@@ -479,16 +479,34 @@ def tabela_existe(cx, nome):
         (nome,)).fetchone() is not None
 
 def quando_correto_de(apelido, carimbo_atual):
-    """O coletado_em CORRETO para este apelido, lido do arquivo de cache do
-    MESMO DIA do carimbo atual (o dia e confiavel — ver comentario acima).
-    None = arquivo bruto nao existe mais: nao reparavel, nunca adivinhado."""
+    """O coletado_em CORRETO para este apelido, lido do arquivo de cache.
+
+    ANTES: montava <apelido>__<dia-do-carimbo-atual>.json e so aceitava esse
+    nome exato. Premissa (valida so da PRIMEIRA vez): agora() e mtime nascem
+    do MESMO evento de escrita, entao caem no mesmo dia. Na SEGUNDA rodada o
+    carimbo examinado ja e o mtime reparado — e mtime perto da meia-noite
+    pode cair num dia diferente do dia gravado NO NOME do arquivo (que fica
+    fixo desde a escrita original). Medido: reprovava teste_datas_coleta.py
+    toda vez que rodava entre 00h e 06h, jogando um grupo JA corrigido em
+    SEM_ARQUIVO na rodada seguinte — alarme falso na propria ferramenta que
+    existe para a data ser honesta.
+
+    AGORA: busca por PADRAO (apelido__*.json), nao pelo dia extraido do
+    carimbo. Um so arquivo bate -> usa ele, sem depender de dia nenhum. Mais
+    de um (apelido recoletado em dias diferentes ao longo do tempo) -> so
+    aceita o que casa com o dia do carimbo; sem casar, nao adivinha (mesma
+    politica de sempre: relatar SEM_ARQUIVO em vez de escolher errado).
+    None = nao reparavel."""
+    candidatos = sorted(glob.glob(os.path.join(DIR_BRUTO, f"{apelido}__*.json")))
+    if not candidatos:
+        return None
+    if len(candidatos) == 1:
+        return quando_arquivo(candidatos[0])
     dia = (carimbo_atual or "")[:10]
-    if len(dia) != 10:
-        return None
-    caminho = os.path.join(DIR_BRUTO, f"{apelido}__{dia}.json")
-    if not os.path.exists(caminho):
-        return None
-    return quando_arquivo(caminho)
+    exato = os.path.join(DIR_BRUTO, f"{apelido}__{dia}.json")
+    if exato in candidatos:
+        return quando_arquivo(exato)
+    return None
 
 def escanear_datas(cx):
     """Devolve (grupos, log, sem_arquivo) — nunca altera o banco.

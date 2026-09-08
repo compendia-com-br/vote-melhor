@@ -209,6 +209,66 @@ with ambiente_isolado():
           codigo2 != 0, f"codigo2={codigo2}")
 
 
+# --- CONTROLE 4 — o reparo e idempotente perto da meia-noite, em QUALQUER fuso
+# O DEFEITO que este controle prova fechado: quando_correto_de() montava
+# <apelido>__<dia do carimbo examinado>.json. Isso e seguro na PRIMEIRA
+# rodada (agora() e mtime nascem do mesmo evento de escrita, mesmo dia), mas
+# quebra na SEGUNDA: o carimbo examinado ja e o mtime reparado, e um mtime a
+# poucas horas da meia-noite pode cair num dia diferente do dia gravado NO
+# NOME do arquivo (fixo desde a escrita original). Reproduzido com
+#   TZ=America/Sao_Paulo python3 testes/teste_datas_coleta.py
+#   TZ=Pacific/Honolulu  python3 testes/teste_datas_coleta.py
+# — falhava (saida 2) sempre que a execucao caia entre 00h e 06h no fuso
+# local, porque um grupo JA corrigido virava SEM_ARQUIVO na rodada seguinte.
+# Rodar so no fuso de quem testa deixa essa janela de poucas horas invisivel
+# quase sempre. Por isso este controle FORCA a meia-noite (constroi um
+# "agora" as 02h e um mtime 6h antes, do OUTRO lado do dia) sob varios fusos
+# bem distantes, sem depender de QUANDO nem de COM QUE TZ este arquivo roda.
+print("CONTROLE 4 — o reparo e idempotente perto da meia-noite, em qualquer fuso")
+fuso_original = os.environ.get("TZ")
+try:
+    for fuso in ("America/Sao_Paulo", "Pacific/Honolulu", "Asia/Tokyo"):
+        os.environ["TZ"] = fuso
+        time.tzset()
+        with ambiente_isolado():
+            hoje_02h = datetime.now().replace(hour=2, minute=0, second=0, microsecond=0)
+            mtime_6h_atras = hoje_02h.timestamp() - 6 * 3600
+            dia_arquivo = hoje_02h.strftime("%Y-%m-%d")
+            carimbo_errado = hoje_02h.astimezone().replace(microsecond=0).isoformat()
+            caminho = escrever_cache("listar_2026_YY_9", dia_arquivo,
+                                     {"candidatos": []}, mtime_6h_atras)
+            correto_esperado = ct.quando_arquivo(caminho)
+
+            cx0 = ct.abrir_banco(); cx0.close()
+            cx = sqlite3.connect(ct.BANCO)
+            cx.execute("""CREATE TABLE candidatura (id TEXT PRIMARY KEY, uf_consultada TEXT,
+                          cargo_codigo TEXT, coletado_em TEXT)""")
+            cx.execute("INSERT INTO candidatura VALUES (?,?,?,?)",
+                       ("id0", "YY", "9", carimbo_errado))
+            cx.commit(); cx.close()
+
+            saida1 = io.StringIO()
+            with contextlib.redirect_stdout(saida1):
+                codigo1 = ct.reparar_datas(ct.BANCO, aplicar=True)
+            saida2 = io.StringIO()
+            with contextlib.redirect_stdout(saida2):
+                codigo2 = ct.reparar_datas(ct.BANCO, aplicar=True)
+
+            checa(f"[{fuso}] cenario forcado realmente cruza a meia-noite",
+                  correto_esperado[:10] != dia_arquivo,
+                  f"correto={correto_esperado}  dia_arquivo={dia_arquivo}")
+            checa(f"[{fuso}] rodada 1 corrige (sai 0)", codigo1 == 0,
+                  f"codigo1={codigo1}")
+            checa(f"[{fuso}] rodada 2 e idempotente — nao vira SEM_ARQUIVO",
+                  codigo2 == 0, f"codigo2={codigo2}  saida={saida2.getvalue()!r}")
+finally:
+    if fuso_original is None:
+        os.environ.pop("TZ", None)
+    else:
+        os.environ["TZ"] = fuso_original
+    time.tzset()
+
+
 print()
 if falhas:
     print(f"REPROVADO: {len(falhas)} controle(s) — {falhas}")
