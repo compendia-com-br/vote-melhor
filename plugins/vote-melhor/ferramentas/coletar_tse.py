@@ -95,6 +95,44 @@ def alvo_mudo(por_cargo):
 class BloqueioTSE(Exception):
     pass
 
+
+# O ERRO TEM LADO, e o lado decide quem morre junto. Numa varredura de 28
+# alvos, falha de TRANSPORTE de um alvo e' rotina — o DNS oscila, o socket
+# cai, o TLS tropeca — e nao pode levar junto os 27 outros nem o bloco que
+# diz por onde retomar. DEFEITO DE CODIGO e' o contrario: se o TSE mudar o
+# esquema do JSON e este arquivo pedir uma chave que sumiu, isso tem que
+# quebrar alto, no primeiro alvo, com o traceback inteiro.
+# Por isso a lista nomeia as familias de transporte uma a uma em vez de
+# `except Exception`: capturar Exception fecharia o buraco criando um pior —
+# todo bug nosso viraria "alvo falhou" em silencio, a coleta nacional
+# terminaria com 28 linhas de FALHOU, e quem lesse concluiria "a rede esta
+# ruim hoje" e repetiria a coleta a noite inteira sem nunca achar a causa.
+FALHAS_DE_TRANSPORTE = (
+    BloqueioTSE,                # o TSE respondeu, e respondeu nao (403, HTTP != 200)
+    OSError,                    # DNS, timeout, conexao derrubada, TLS, gzip corrompido
+    http.client.HTTPException,  # resposta HTTP malformada (truncada, status ilegivel)
+    zlib.error,                 # corpo deflate corrompido
+    json.JSONDecodeError,       # veio corpo, mas nao era JSON (pagina de erro do CDN)
+    UnicodeDecodeError,         # veio corpo, mas nao era utf-8
+)
+# As duas ultimas sao subclasses de ValueError, e e' de proposito que
+# ValueError NAO esta na lista: as duas dizem "o que chegou do outro lado nao
+# presta", enquanto ValueError cru engoliria erro de logica nosso. Mesma
+# razao para nao usar IOError/EnvironmentError (apelidos de OSError, que ja
+# esta ai) nem socket.error (idem).
+
+
+def descrever_falha(e):
+    """Uma linha que diz O QUE aconteceu, nao so QUE aconteceu.
+
+    O nome da classe vem sempre: e' ele que separa "nao resolveu o nome" de
+    "conexao recusada" quando as duas viram a mesma palavra FALHOU. E ha'
+    excecao de transporte cujo str() e' VAZIO — str(TimeoutError()) e' "" —
+    e e' ali que um `str(e)` pelado imprimiria um alvo falho sem nenhuma
+    razao, o que e' pior que inutil: parece dado."""
+    texto = str(e).strip()
+    return f"{type(e).__name__}: {texto}" if texto else type(e).__name__
+
 _requisicoes = 0
 
 def buscar(caminho, pausa):
@@ -336,7 +374,12 @@ def cmd_listar(uf, pausa, forcar):
     cx.close()
 
 def cmd_pais(pausa, forcar):
-    """Varre os 28 alvos. Falha de um nao derruba os outros."""
+    """Varre os 28 alvos. Falha de REDE de um nao derruba os outros.
+
+    Falha de transporte (ver FALHAS_DE_TRANSPORTE) vira linha em `falharam`
+    e a varredura segue; defeito de codigo sobe inteiro, de proposito. O
+    que se perderia sem isso nao e' so o resto da varredura: e' o bloco de
+    recuperacao do fim, que e' a unica coisa que diz por onde retomar."""
     cx = abrir_banco()
     print(f"Coleta nacional — eleição {ANO} (id {ID_ELEICAO}) — {len(ALVOS)} alvos")
     print("BR é a cédula presidencial: cargo 1 só devolve candidato ali.\n")
@@ -345,9 +388,10 @@ def cmd_pais(pausa, forcar):
     for uf in ALVOS:
         try:
             por_cargo = coletar_alvo(cx, uf, pausa, forcar, imprimir=False)
-        except BloqueioTSE as e:
-            falharam.append((uf, str(e)))
-            print(f"{uf:<6} {'FALHOU':>11}  {e}")
+        except FALHAS_DE_TRANSPORTE as e:
+            descricao = descrever_falha(e)
+            falharam.append((uf, descricao))
+            print(f"{uf:<6} {'FALHOU':>11}  {descricao}")
             continue
         n = sum(por_cargo.values())
         total += n
