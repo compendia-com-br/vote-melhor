@@ -431,28 +431,33 @@ def cmd_pais(pausa, forcar):
 def cmd_detalhe(ident, uf, pausa, forcar):
     uf = uf.upper()
     cx = abrir_banco()
-    caminho = (f"/divulga/rest/v1/candidatura/buscar/{ANO}/{uf}/"
-               f"{ID_ELEICAO}/candidato/{ident}")
-    apelido = f"detalhe_{ANO}_{uf}_{ident}"
     try:
-        dados, url, de_cache, quando = obter(caminho, apelido, pausa, forcar)
-    except BloqueioTSE as e:
-        print(f"\nERRO: {e}", file=sys.stderr)
-        sys.exit(2)
-    id_linha = str(dados.get("id") or ident)
-    l = achatar(dados, id_linha=id_linha)
-    l["id"] = id_linha
-    l["uf_consultada"] = uf
-    l["coletado_em"] = quando
-    l["fonte_url"] = url
-    gravar(cx, "detalhe", [l])
-    cx.execute("INSERT INTO coleta VALUES (?,?,?,?,?)",
-               (l["coletado_em"], f"detalhe {ident}", url, 1, int(de_cache)))
-    cx.commit()
-    print(f"Detalhe gravado: {l['id']} — {l.get('nomeUrna') or l.get('nomeCompleto')}")
-    print(f"  campos guardados: {len(l)}  |  origem: {'cache' if de_cache else 'rede'}")
-    print(f"  requisições de rede nesta execução: {_requisicoes}")
-    cx.close()
+        caminho = (f"/divulga/rest/v1/candidatura/buscar/{ANO}/{uf}/"
+                   f"{ID_ELEICAO}/candidato/{ident}")
+        apelido = f"detalhe_{ANO}_{uf}_{ident}"
+        try:
+            dados, url, de_cache, quando = obter(caminho, apelido, pausa, forcar)
+        except FALHAS_DE_TRANSPORTE as e:
+            print(f"\nERRO: {descrever_falha(e)}", file=sys.stderr)
+            sys.exit(2)
+        id_linha = str(dados.get("id") or ident)
+        l = achatar(dados, id_linha=id_linha)
+        l["id"] = id_linha
+        l["uf_consultada"] = uf
+        l["coletado_em"] = quando
+        l["fonte_url"] = url
+        gravar(cx, "detalhe", [l])
+        cx.execute("INSERT INTO coleta VALUES (?,?,?,?,?)",
+                   (l["coletado_em"], f"detalhe {ident}", url, 1, int(de_cache)))
+        cx.commit()
+        print(f"Detalhe gravado: {l['id']} — {l.get('nomeUrna') or l.get('nomeCompleto')}")
+        print(f"  campos guardados: {len(l)}  |  origem: {'cache' if de_cache else 'rede'}")
+        print(f"  requisições de rede nesta execução: {_requisicoes}")
+    finally:
+        # O except acima fazia sys.exit(2) sem fechar: aqui nem o caminho
+        # tratado fechava. O finally cobre os tres — fim feliz, saida por
+        # erro de rede e defeito de codigo subindo.
+        cx.close()
 
 # --- frescor -----------------------------------------------------------------
 # A situacao do registro e o campo mais volatil no momento mais decisivo:
@@ -486,19 +491,25 @@ def idade_da_base(cx):
 
 def cmd_idade(_pausa=None, _forcar=None):
     cx = abrir_banco()
-    dias, quando = idade_da_base(cx)
-    if dias is None:
-        print("Base ainda nao coletada. Rode:  coletar_tse.py --listar <UF>")
-        cx.close(); return 2
-    print(f"Base coletada em {quando}")
-    print(f"Idade: {dias} dia(s)  |  limite: {IDADE_MAXIMA_DIAS} dia(s)")
-    if dias > IDADE_MAXIMA_DIAS:
-        print()
-        print("RECUSADO: a base passou do limite.")
-        print(f"  Rode:  coletar_tse.py --listar <UF> --forcar")
-        cx.close(); return 2
-    print("Dentro do limite.")
-    cx.close(); return 0
+    try:
+        dias, quando = idade_da_base(cx)
+        if dias is None:
+            print("Base ainda nao coletada. Rode:  coletar_tse.py --listar <UF>")
+            return 2
+        print(f"Base coletada em {quando}")
+        print(f"Idade: {dias} dia(s)  |  limite: {IDADE_MAXIMA_DIAS} dia(s)")
+        if dias > IDADE_MAXIMA_DIAS:
+            print()
+            print("RECUSADO: a base passou do limite.")
+            print(f"  Rode:  coletar_tse.py --listar <UF> --forcar")
+            return 2
+        print("Dentro do limite.")
+        return 0
+    finally:
+        # Os tres `cx.close(); return` cobriam todas as saidas que existiam
+        # — e so elas. O finally cobre tambem a proxima que alguem
+        # acrescentar sem lembrar, e o defeito de codigo que suba daqui.
+        cx.close()
 
 
 # --- reparo de datas -----------------------------------------------------------
@@ -705,59 +716,65 @@ def cmd_frescor(ident, uf, pausa, forcar=True):
     """Compara a situacao gravada com a situacao da hora, e mostra as DUAS."""
     uf = uf.upper()
     cx = abrir_banco()
-    cx.row_factory = sqlite3.Row
-    base = cx.execute(
-        "SELECT nomeUrna, descricaoSituacao, cargo_nome, partido_sigla FROM candidatura "
-        "WHERE id = ?", (str(ident),)).fetchone()
-    cx.row_factory = None
-    quando_base = cx.execute(
-        "SELECT MAX(quando) FROM coleta WHERE alvo LIKE 'listar%'").fetchone()[0]
-
-    caminho = (f"/divulga/rest/v1/candidatura/buscar/{ANO}/{uf}/"
-               f"{ID_ELEICAO}/candidato/{ident}")
     try:
-        dados, url, de_cache, quando_ag = obter(
-            caminho, f"frescor_{ANO}_{uf}_{ident}", pausa, forcar)
-    except BloqueioTSE as e:
-        print(f"\nERRO: {e}", file=sys.stderr)
-        cx.close(); sys.exit(2)
+        cx.row_factory = sqlite3.Row
+        # Estes dois SELECT ficavam FORA de qualquer protecao. Numa base
+        # recem-criada nao existe tabela candidatura, o primeiro levanta
+        # OperationalError e a conexao ficava aberta — que e' exatamente o
+        # que acontece com quem roda --frescor antes da primeira coleta.
+        base = cx.execute(
+            "SELECT nomeUrna, descricaoSituacao, cargo_nome, partido_sigla FROM candidatura "
+            "WHERE id = ?", (str(ident),)).fetchone()
+        cx.row_factory = None
+        quando_base = cx.execute(
+            "SELECT MAX(quando) FROM coleta WHERE alvo LIKE 'listar%'").fetchone()[0]
 
-    nome  = dados.get("nomeUrna") or dados.get("nomeCompleto") or "sem dado"
-    ag    = dados.get("descricaoSituacao") or "sem dado"
-    # forcar=True por padrao (assinatura acima): --frescor pede a situacao
-    # DA HORA de proposito, entao de_cache aqui deveria ser sempre False e
-    # quando_ag deveria ser sempre agora(). Se um dia alguem chamar com
-    # forcar=False, quando_ag continua correto (mtime do cache), porque vem
-    # do mesmo obter() que candidatura/detalhe usam — nao ha calculo em
-    # duplicata para divergir.
+        caminho = (f"/divulga/rest/v1/candidatura/buscar/{ANO}/{uf}/"
+                   f"{ID_ELEICAO}/candidato/{ident}")
+        try:
+            dados, url, de_cache, quando_ag = obter(
+                caminho, f"frescor_{ANO}_{uf}_{ident}", pausa, forcar)
+        except FALHAS_DE_TRANSPORTE as e:
+            print(f"\nERRO: {descrever_falha(e)}", file=sys.stderr)
+            sys.exit(2)
 
-    L = 66
-    print("=" * L)
-    print("FRESCOR DO REGISTRO — a base e a consulta da hora, lado a lado")
-    print("=" * L)
-    print(f"{nome}  ({dados.get('cargo',{}).get('nome','sem dado')})")
-    print()
-    if base is None:
-        print("  Este id nao esta na base local. Mostro so a consulta da hora.")
-        print(f"  agora  ({quando_ag[:19]}): {ag}")
-    else:
-        ant = base["descricaoSituacao"] or "sem dado"
-        print(f"  base   ({str(quando_base)[:19]}): {ant}")
-        print(f"  agora  ({quando_ag[:19]}): {ag}")
+        nome  = dados.get("nomeUrna") or dados.get("nomeCompleto") or "sem dado"
+        ag    = dados.get("descricaoSituacao") or "sem dado"
+        # forcar=True por padrao (assinatura acima): --frescor pede a situacao
+        # DA HORA de proposito, entao de_cache aqui deveria ser sempre False e
+        # quando_ag deveria ser sempre agora(). Se um dia alguem chamar com
+        # forcar=False, quando_ag continua correto (mtime do cache), porque vem
+        # do mesmo obter() que candidatura/detalhe usam — nao ha calculo em
+        # duplicata para divergir.
+
+        L = 66
+        print("=" * L)
+        print("FRESCOR DO REGISTRO — a base e a consulta da hora, lado a lado")
+        print("=" * L)
+        print(f"{nome}  ({dados.get('cargo',{}).get('nome','sem dado')})")
         print()
-        if norm(ant) == norm(ag):
-            print("  IGUAL — a situacao nao mudou desde a coleta da base.")
+        if base is None:
+            print("  Este id nao esta na base local. Mostro so a consulta da hora.")
+            print(f"  agora  ({quando_ag[:19]}): {ag}")
         else:
-            print("  *** DIVERGEM ***")
-            print("  A base local esta desatualizada PARA ESTE CANDIDATO.")
-            print("  As duas linhas ficam. A ferramenta nao sobrescreve em silencio:")
-            print("  a mudanca de situacao e o fato mais relevante que esta ficha traz hoje.")
-    print()
-    print(f"  fonte: {url}  [{'cache' if de_cache else 'rede'}]")
-    print(f"  requisicoes de rede nesta execucao: {_requisicoes}")
-    print("=" * L)
-    cx.close()
-    return 0
+            ant = base["descricaoSituacao"] or "sem dado"
+            print(f"  base   ({str(quando_base)[:19]}): {ant}")
+            print(f"  agora  ({quando_ag[:19]}): {ag}")
+            print()
+            if norm(ant) == norm(ag):
+                print("  IGUAL — a situacao nao mudou desde a coleta da base.")
+            else:
+                print("  *** DIVERGEM ***")
+                print("  A base local esta desatualizada PARA ESTE CANDIDATO.")
+                print("  As duas linhas ficam. A ferramenta nao sobrescreve em silencio:")
+                print("  a mudanca de situacao e o fato mais relevante que esta ficha traz hoje.")
+        print()
+        print(f"  fonte: {url}  [{'cache' if de_cache else 'rede'}]")
+        print(f"  requisicoes de rede nesta execucao: {_requisicoes}")
+        print("=" * L)
+        return 0
+    finally:
+        cx.close()
 
 
 # --- plano de governo --------------------------------------------------------
@@ -813,8 +830,8 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
         print(f"Baixando os planos de governo de {uf_pacote}...")
         try:
             dados = baixar_cdn(caminho, pausa)
-        except BloqueioTSE as e:
-            print(f"\nERRO: {e}", file=sys.stderr); return 2
+        except FALHAS_DE_TRANSPORTE as e:
+            print(f"\nERRO: {descrever_falha(e)}", file=sys.stderr); return 2
         os.makedirs(DIR_BRUTO, exist_ok=True)
         open(zipe, "wb").write(dados)
         print(f"  {len(dados):,} bytes".replace(",", "."))
@@ -836,25 +853,28 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
     # --plano <UF>: so o inventario
     if len(str(alvo)) <= 3:
         cx = abrir_banco(); cx.row_factory = sqlite3.Row
-        print(f"\nPlanos de governo em {uf_pacote}: {len(mapa)} documento(s)\n")
-        print(f"  {'nº':<5}{'candidato':<28}{'cargo':<16}plano")
-        print("  " + "-" * 62)
-        cargos = ("Presidente", "Governador", "Prefeito")
-        linhas = cx.execute(
-            "SELECT id, nomeUrna, numero, cargo_nome FROM candidatura "
-            "WHERE cargo_nome IN (?,?,?) ORDER BY CAST(numero AS INTEGER)", cargos).fetchall()
-        for r in linhas:
-            tem = r["id"] in mapa
-            print(f"  {r['numero'] or '?':<5}{(r['nomeUrna'] or '')[:26]:<28}"
-                  f"{(r['cargo_nome'] or '')[:14]:<16}{'sim' if tem else 'NAO ENTREGOU'}")
-        print()
-        print("  Nao entregar plano de governo e informacao, nao juizo: a lei exige")
-        print("  o documento de candidato a cargo executivo.")
-        print()
-        print("  ATENCAO ao metodo: nao descubra isso pelo NOME do arquivo anexado")
-        print("  a candidatura. Medido em 02/09/2026: essa via errou 2 de 11 em MG,")
-        print("  porque candidato nomeia o proprio arquivo como quer.")
-        cx.close(); return 0
+        try:
+            print(f"\nPlanos de governo em {uf_pacote}: {len(mapa)} documento(s)\n")
+            print(f"  {'nº':<5}{'candidato':<28}{'cargo':<16}plano")
+            print("  " + "-" * 62)
+            cargos = ("Presidente", "Governador", "Prefeito")
+            linhas = cx.execute(
+                "SELECT id, nomeUrna, numero, cargo_nome FROM candidatura "
+                "WHERE cargo_nome IN (?,?,?) ORDER BY CAST(numero AS INTEGER)", cargos).fetchall()
+            for r in linhas:
+                tem = r["id"] in mapa
+                print(f"  {r['numero'] or '?':<5}{(r['nomeUrna'] or '')[:26]:<28}"
+                      f"{(r['cargo_nome'] or '')[:14]:<16}{'sim' if tem else 'NAO ENTREGOU'}")
+            print()
+            print("  Nao entregar plano de governo e informacao, nao juizo: a lei exige")
+            print("  o documento de candidato a cargo executivo.")
+            print()
+            print("  ATENCAO ao metodo: nao descubra isso pelo NOME do arquivo anexado")
+            print("  a candidatura. Medido em 02/09/2026: essa via errou 2 de 11 em MG,")
+            print("  porque candidato nomeia o proprio arquivo como quer.")
+            return 0
+        finally:
+            cx.close()
 
     # --plano <id>: extrai o PDF daquele candidato
     ident = str(alvo)
@@ -873,9 +893,11 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
             g.write(f.read())
         saidas.append(alvo_pdf)
     cx = abrir_banco(); cx.row_factory = sqlite3.Row
-    r = cx.execute("SELECT nomeUrna, numero, cargo_nome FROM candidatura WHERE id = ?",
-                   (ident,)).fetchone()
-    cx.close()
+    try:
+        r = cx.execute("SELECT nomeUrna, numero, cargo_nome FROM candidatura WHERE id = ?",
+                       (ident,)).fetchone()
+    finally:
+        cx.close()
     print()
     print(f"Plano de governo — {r['nomeUrna'] if r else ident}")
     if r: print(f"  cargo: {r['cargo_nome']}  |  numero na urna: {r['numero']}")
