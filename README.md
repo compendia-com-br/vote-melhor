@@ -8,7 +8,9 @@ oficial, não classifica, não pontua e não recomenda voto.
 
 Cobertura nacional: 20.005 candidaturas, das 27 UFs mais a cédula presidencial (`BR`), em
 seis cargos — presidente, governador, senador, deputado federal, deputado estadual e
-deputado distrital.
+deputado distrital. Medido em 07/09/2026 — a base é recoletada até a eleição de
+4 de outubro de 2026, e este número envelhece; confira a data de coleta em
+[`gpt/conhecimento/FONTE.md`](gpt/conhecimento/FONTE.md).
 
 Uma coleção **Compendia**.
 
