@@ -6,14 +6,44 @@ conta ChatGPT Plus, Team ou Enterprise — GPT personalizado não existe no plan
 Cada passo diz o que fazer e o que deve aparecer depois, para dar para conferir sem
 adivinhar.
 
-## 1. Criar o GPT
+## 1. Gerar o pacote de conhecimento
+
+A pasta `gpt/conhecimento/` **não vem no repositório clonado, de propósito** — se você
+acabou de clonar e ela não existe, isso é esperado, não é defeito. Instalar o plugin
+clona o repositório inteiro, e quem só queria o plugin não pediu as 20 mil candidaturas
+do TSE. Por isso o pacote nasce na máquina de quem publica, não no commit.
+
+A partir da raiz deste repositório clonado, rode os dois comandos abaixo, nesta ordem:
+
+```
+python3 plugins/vote-melhor/ferramentas/coletar_tse.py --pais
+python3 ferramentas/exportar_gpt.py
+```
+
+O primeiro coleta os 28 alvos do TSE (as 27 UFs mais a cédula presidencial, `BR`) e bate
+num servidor público, com pausa obrigatória entre requisições — leva alguns minutos na
+primeira vez. Na tela, aparece uma linha por alvo com a contagem de candidatos, e ao
+final um total geral. Se um cache do dia já existir na sua máquina, ele é reaproveitado e
+o comando termina em segundos — não rode a coleta nacional mais de uma vez no mesmo dia
+sem necessidade.
+
+O segundo lê o banco recém-coletado e grava `gpt/conhecimento/candidatos-2026.csv` e
+`gpt/conhecimento/FONTE.md`. Termina em poucos segundos e imprime `Exportado: 20005
+candidatura(s) -> ...` (o número muda conforme a coleta) seguido de `Fonte escrita em
+...`. Se sair com `RECUSADO`, pare — é o portão contra documento de identificação
+vazado, tratado em `verificar_dados.py`, e o arquivo não deve subir assim.
+
+Só depois disso a pasta `gpt/conhecimento/` existe com os dois arquivos que os passos
+abaixo usam.
+
+## 2. Criar o GPT
 
 Em chatgpt.com/gpts/editor, aba "Configure". Preencha **Name** com `Vote Melhor` (de
 `gpt/DESCRICAO.md`) e **Description** com o texto do mesmo arquivo. Depois disso a tela
 mostra os campos Instructions, Conversation starters, Knowledge e Capabilities — é neles
 que os próximos passos mexem.
 
-## 2. Colar as instruções
+## 3. Colar as instruções
 
 Copie o conteúdo inteiro de `gpt/INSTRUCOES.md` (sem o front-matter, que ele não tem) e
 cole em **Instructions**. Depois de colar, o contador de caracteres da própria tela do
@@ -21,20 +51,20 @@ ChatGPT deve mostrar um número abaixo de 8.000 — se mostrar acima, o campo tr
 avisar, e o corte cai onde o ChatGPT decidir, não onde a guarda pede. Se isso acontecer,
 pare e encurte antes de seguir.
 
-## 3. Colar os iniciadores de conversa
+## 4. Colar os iniciadores de conversa
 
 Cole as quatro frases de `gpt/DESCRICAO.md` em **Conversation starters**, uma por campo.
 Depois de colar, os quatro devem aparecer como botões na pré-visualização à direita da
 tela.
 
-## 4. Subir a base de conhecimento
+## 5. Subir a base de conhecimento
 
 Em **Knowledge**, clique "Upload files" e suba os dois arquivos de
 `gpt/conhecimento/`: `candidatos-2026.csv` e `FONTE.md`. Depois de subir, os dois devem
 aparecer listados nessa seção com o tamanho do arquivo ao lado — confira que o CSV
 aparece com uns 5-6 MB (20 mil linhas), não com 0 bytes.
 
-## 5. Ligar Code Interpreter — obrigatório
+## 6. Ligar Code Interpreter — obrigatório
 
 Em **Capabilities**, marque **Code Interpreter & Data Analysis**. Sem isso, o item 1 das
 instruções (nunca responder de memória, sempre filtrar o CSV com código) não tem como se
@@ -44,14 +74,14 @@ pré-visualização) "lista os 3 primeiros candidatos do arquivo" — a resposta
 com uma célula de código executada, visível na conversa. Se não aparecer código nenhum,
 a marcação não pegou.
 
-## 6. Ligar navegação — obrigatório
+## 7. Ligar navegação — obrigatório
 
 Marque **Web Browsing** (ou **Web Search**, dependendo da versão da tela). É o que
 sustenta a skill de fontes externas: proposta de governo, atuação parlamentar e notícia
 não estão no CSV, e sem navegação o GPT teria que inventar ou recusar toda pergunta sobre
 esses três assuntos.
 
-## 7. NÃO criar Action — decisão medida, não esquecimento
+## 8. NÃO criar Action — decisão medida, não esquecimento
 
 Não marque **Actions**. Não crie nenhuma. Motivo medido em 07/09/2026: uma requisição
 `curl` pura, sem nenhum enfeite, levou **403** nos três endpoints do TSE testados
@@ -63,20 +93,20 @@ quiser "consertar" adicionando uma Action, o teste é rodar `curl` contra qualqu
 três endpoints acima e ler o código de resposta antes de escrever uma linha** — evita
 perder um dia inteiro atrás de uma Action que nunca vai passar.
 
-## 8. Desligar o gerador de imagem
+## 9. Desligar o gerador de imagem
 
 Desmarque **DALL·E Image Generation**. O Vote Melhor não gera imagem — ligado, ele só
 soma uma capacidade que nunca é usada e pode confundir quem testar o GPT perguntando por
 uma arte.
 
-## 9. Publicar
+## 10. Publicar
 
 No canto superior direito, "Create" (ou "Update", se já existir) → escolha quem pode ver
 (recomendado: "Anyone with a link" ou "Public", conforme o alcance decidido para a
 distribuição) → confirme. Depois de publicar, abra o link em uma aba anônima e repita o
-teste do passo 5 — se o código não aparecer para um visitante sem login na conta que
+teste do passo 6 — se o código não aparecer para um visitante sem login na conta que
 criou o GPT, o link publicado não é o mesmo GPT configurado, e vale conferir de novo os
-passos 2 e 5.
+passos 3 e 6.
 
 ## Como atualizar a base depois
 
@@ -87,7 +117,7 @@ outubro de 2026). Para atualizar:
    mais BR do TSE.
 2. `python3 ferramentas/exportar_gpt.py` — regrava `gpt/conhecimento/candidatos-2026.csv`
    e `gpt/conhecimento/FONTE.md` com a nova data de coleta.
-3. Na tela **Configure** do GPT (mesmo link do passo 1), em **Knowledge**, remova o CSV
+3. Na tela **Configure** do GPT (mesmo link do passo 2), em **Knowledge**, remova o CSV
    antigo e suba o novo — o ChatGPT não atualiza arquivo já subido sozinho, é preciso
    trocar. Suba também o `FONTE.md` novo.
 4. Clique "Update" para publicar a base nova no GPT que já está no ar.

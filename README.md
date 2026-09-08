@@ -9,8 +9,9 @@ oficial, não classifica, não pontua e não recomenda voto.
 Cobertura nacional: 20.005 candidaturas, das 27 UFs mais a cédula presidencial (`BR`), em
 seis cargos — presidente, governador, senador, deputado federal, deputado estadual e
 deputado distrital. Medido em 07/09/2026 — a base é recoletada até a eleição de
-4 de outubro de 2026, e este número envelhece; confira a data de coleta em
-[`gpt/conhecimento/FONTE.md`](gpt/conhecimento/FONTE.md).
+4 de outubro de 2026, e este número envelhece. A data de cada coleta fica em `FONTE.md`,
+gerado junto do pacote do GPT — esse arquivo não vem neste repositório, de propósito
+(veja [`gpt/COMO-PUBLICAR.md`](gpt/COMO-PUBLICAR.md)).
 
 Uma coleção **Compendia**.
 
@@ -19,7 +20,7 @@ Uma coleção **Compendia**.
 | Pasta | O que é |
 |---|---|
 | `plugins/vote-melhor` | o plugin do Claude Code — instalável, com os seis scripts, as skills e o comando que conduz a consulta |
-| `gpt` | o pacote do GPT personalizado — descrição de vitrine, instruções e base de conhecimento |
+| `gpt` | o pacote do GPT personalizado — descrição de vitrine, instruções, e o passo a passo para gerar a base de conhecimento (que não vem neste repositório) |
 | `docs` | especificação e plano da distribuição pública deste repositório |
 | `ferramentas` | ferramentas de manutenção do próprio repositório — não fazem parte do plugin instalado |
 | `testes` | linha de base e sondas de verificação |

@@ -8,8 +8,10 @@
 #
 # NÃO EMBARCA NO PLUGIN: é ferramenta de quem mantém a base, não de quem usa
 # o plugin. Roda uma vez por atualização de dado, e o CSV gerado é o arquivo
-# que sobe para dentro do GPT — por isso vive em gpt/conhecimento/, versionado,
-# não em plugins/vote-melhor/ (o validador reprova dado embarcado no plugin).
+# que sobe para dentro do GPT — por isso vive em gpt/conhecimento/, gerado a
+# cada rodada, NÃO versionado (.gitignore) — instalar o plugin clona o
+# repositório inteiro, e quem só queria o plugin não pediu o dado. Também não
+# fica em plugins/vote-melhor/ (o validador reprova dado embarcado no plugin).
 #
 # PORTÃO, NÃO AVISO. O ChatGPT não alcança o TSE — medido: 403 nos três
 # endpoints, a cliente HTTP comum — então a base tem que ir como arquivo, e

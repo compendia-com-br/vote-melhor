@@ -5,6 +5,13 @@
 # uma única coleta de MG.
 dados/
 
+# Pacote de conhecimento do GPT — NÃO versionar.
+# Instalar o plugin clona o repositório inteiro: se o CSV ficasse aqui, quem
+# só queria o plugin baixaria as 20 mil candidaturas sem pedir. Gerado por
+# `ferramentas/exportar_gpt.py` (veja `gpt/COMO-PUBLICAR.md`) — o arquivo
+# carrega a data de quem rodou, não a data de quem commitou.
+gpt/conhecimento/
+
 # Python
 __pycache__/
 *.pyc

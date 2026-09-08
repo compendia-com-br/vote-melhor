@@ -9,7 +9,8 @@ mudanca futura podia quebrar o pareamento entre linha e id em silencio, sem
 que nada acusasse.
 
 Este teste NUNCA toca a base real (~/.local/share/vote-melhor) nem grava nos
-arquivos versionados gpt/conhecimento/*: toda chamada usa banco, CSV e
+arquivos gerados gpt/conhecimento/* (nao versionados desde a distribuicao
+publica — veja .gitignore): toda chamada usa banco, CSV e
 FONTE.md temporarios, e main() e chamado com BANCO/CSV_SAIDA/FONTE_SAIDA
 redirecionados por monkeypatch ANTES de rodar — mesmo que o codigo tivesse um
 defeito que o fizesse escrever fora do lugar certo, o redirecionamento
