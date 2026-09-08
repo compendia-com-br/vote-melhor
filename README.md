@@ -6,26 +6,91 @@ Monta a ficha de candidatura de eleição brasileira a partir do dado oficial do
 "melhor" é sobre a decisão de quem vota, não sobre o candidato — a ferramenta reúne o dado
 oficial, não classifica, não pontua e não recomenda voto.
 
+Cobertura nacional: 20.005 candidaturas, das 27 UFs mais a cédula presidencial (`BR`), em
+seis cargos — presidente, governador, senador, deputado federal, deputado estadual e
+deputado distrital.
+
 Uma coleção **Compendia**.
 
 ## O que tem aqui
 
 | Pasta | O que é |
 |---|---|
-| `plugins/vote-melhor` | o plugin do Claude Code — instalável, com o skill que conduz a consulta |
-| `ferramentas` | coleta do TSE e da Câmara, critérios de checagem |
+| `plugins/vote-melhor` | o plugin do Claude Code — instalável, com os seis scripts, as skills e o comando que conduz a consulta |
+| `gpt` | o pacote do GPT personalizado — descrição de vitrine, instruções e base de conhecimento |
+| `docs` | especificação e plano da distribuição pública deste repositório |
+| `ferramentas` | ferramentas de manutenção do próprio repositório — não fazem parte do plugin instalado |
 | `testes` | linha de base e sondas de verificação |
-| `dados` | cache local de coleta — **nunca versionado** (ver abaixo) |
 
 Detalhe de uso e o que o plugin não faz, por decisão, em
 [plugins/vote-melhor/README.md](plugins/vote-melhor/README.md).
 
-## Dado sensível
+## O que ele não faz, por decisão
 
-`dados/` guarda documento de identificação de candidato — o TSE publica título de eleitor
-em toda listagem e CPF no detalhe, sob licença Creative Commons Atribuição. É dado público
-do TSE, mas ainda assim de terceiro: o `.gitignore` bloqueia essa pasta antes de qualquer
-commit.
+- **Não classifica candidato, não pontua e não ordena por mérito.** A situação impressa é
+  a string literal do TSE; a ordem é a que você pediu, ou o número na urna.
+- **Não recomenda voto.** O "melhor" do nome é a decisão de quem vota, nunca uma nota que
+  a ferramenta calcula.
+- **Não emite "ficha limpa" nem "ficha suja".** A Lei Complementar 135/2010 exige
+  condenação por órgão colegiado, e isso não existe como campo consultável por máquina —
+  um veredito desses seria inferência apresentada como dado.
+- **Não é pesquisa eleitoral nem propaganda eleitoral.** O porquê de cada uma, com a lei
+  citada, está na seção Aviso legal, abaixo.
+
+## Como instalar no Claude Code
+
+```
+/plugin marketplace add compendia-com-br/vote-melhor
+/plugin install vote-melhor@compendia-civico
+```
+
+Depois de instalado, `/vote-melhor` pergunta a UF e conduz o resto.
+
+## Como montar no ChatGPT
+
+Quem não usa Claude Code pode montar um GPT personalizado com o mesmo dado e a mesma
+guarda contra recomendar voto. Passo a passo, campo por campo da tela do GPT Builder, em
+[gpt/COMO-PUBLICAR.md](gpt/COMO-PUBLICAR.md).
+
+## Onde o dado fica, e por que não é versionado
+
+Na máquina de quem coleta, em `~/.local/share/vote-melhor` — ou onde a variável de
+ambiente `VOTE_MELHOR_DADOS` apontar. Nunca dentro do plugin instalado, e nunca dentro
+deste repositório.
+
+O TSE publica título de eleitor em toda listagem de candidatos e CPF no detalhe, sob
+licença Creative Commons Atribuição. É dado público, mas ainda de terceiro — por isso não
+entra em commit, e o coletor descarta ou mascara os dois campos antes de gravar qualquer
+coisa no banco local.
+
+## Licença e marca
+
+O código é **Apache License 2.0** — texto completo em [LICENSE](LICENSE). Livre para usar,
+estudar, modificar e redistribuir, inclusive de forma comercial, sem pedir permissão.
+
+A licença não cede marca (§6 do Apache-2.0): "Vote Melhor" e "Compendia" continuam marcas
+da Compendia mesmo depois de um fork. Quem redistribuir uma versão modificada troca de
+nome. Detalhe e o porquê em
+[plugins/vote-melhor/LICENCA.md](plugins/vote-melhor/LICENCA.md).
+
+## Aviso legal
+
+Este software não é pesquisa eleitoral (a Lei 9.504/97, no art. 33, exige registro prévio
+no TSE para isso) e não é propaganda eleitoral — ele não classifica, não pontua, não ordena
+por mérito e não recomenda voto. Texto completo, com o porquê de cada guarda, em
+[AVISO-LEGAL.md](AVISO-LEGAL.md).
+
+## Fontes e atribuição
+
+O dado vem de três fontes públicas oficiais, e a atribuição a cada uma é impressa em cada
+ficha emitida, com a URL e a data da coleta:
+
+- **Tribunal Superior Eleitoral (TSE)** — DivulgaCandContas e Portal de Dados Abertos, sob
+  licença Creative Commons Atribuição (CC BY).
+- **Câmara dos Deputados** — Dados Abertos.
+- **Senado Federal** — Dados Abertos.
+
+Texto completo em [NOTICE](NOTICE).
 
 ---
 
