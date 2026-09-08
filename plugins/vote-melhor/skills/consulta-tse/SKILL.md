@@ -37,7 +37,7 @@ O script imprime quantas requisições fez. Segunda execução da mesma UF deve 
 
 ```bash
 python3 "$F/consultar.py" --uf MG --cargo "DEPUTADO FEDERAL"
-python3 "$F/consultar.py" --nome kalil
+python3 "$F/consultar.py" --nome "<trecho do nome>"
 ```
 
 A busca por nome ignora acento e caixa.

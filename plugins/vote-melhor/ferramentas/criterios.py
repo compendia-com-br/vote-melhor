@@ -18,6 +18,15 @@ sobre aquele candidato naquele eixo, com a fonte. Quem julga é quem lê.
 """
 import argparse, json, os, re, sqlite3, sys, time, unicodedata, urllib.parse, urllib.request
 
+# Diretorio REAL deste arquivo. As mensagens de recuperacao montam o comando a
+# partir daqui, e nao de um caminho escrito a mao: "ferramentas/x.py" nao
+# existe a partir da raiz de um clone (os scripts moram em
+# plugins/vote-melhor/ferramentas/) nem a partir de um plugin instalado. Uma
+# mensagem de recuperacao que manda rodar um caminho inexistente deixa quem
+# tropecou sem saida — o erro seguinte e igualzinho ao primeiro.
+_AQUI = os.path.dirname(os.path.abspath(__file__))
+_IRMAO = lambda nome: os.path.join(_AQUI, nome)
+
 RAIZ = os.environ.get("VOTE_MELHOR_DADOS") or os.path.join(
     os.path.expanduser("~"), ".local", "share", "vote-melhor")
 BANCO = os.path.join(RAIZ, "dados", "tse.sqlite")
@@ -48,7 +57,8 @@ AVISO_PROPOSTA = (
 def abrir():
     if not os.path.exists(BANCO):
         print(f"Banco não encontrado em {BANCO}.\n"
-              f"Rode antes:  python3 ferramentas/coletar_tse.py --listar <UF>", file=sys.stderr)
+              f"Rode antes:  python3 {_IRMAO('coletar_tse.py')} --listar <UF>",
+              file=sys.stderr)
         sys.exit(2)
     cx = sqlite3.connect(BANCO)
     cx.create_function("limpar", 1, limpar)
@@ -79,13 +89,23 @@ def cmd_declarar(textos):
 def ler_eixos():
     if not os.path.exists(EIXOS):
         print("Nenhum eixo declarado ainda. Rode antes:\n"
-              '  python3 ferramentas/criterios.py --declarar "tema 1" "tema 2"', file=sys.stderr)
+              f'  python3 {_IRMAO("criterios.py")} --declarar "tema 1" "tema 2"',
+              file=sys.stderr)
         sys.exit(2)
     with open(EIXOS, encoding="utf-8") as f:
         return json.load(f)["eixos"]
 
 
 API_CAMARA = "https://dadosabertos.camara.leg.br/api/v2"
+
+# senador NAO e deputado: consultar a Camara para um candidato ao Senado
+# devolve "nao localizado" (ausencia lida como demerito) ou, pior, junta esse
+# candidato com um deputado homonimo e imprime proposicao da casa errada. Por
+# isso o cruzamento de senador importa senado.py e usa a API do Senado — nunca
+# a da Camara. sys.dont_write_bytecode evita .pyc do modulo irmao.
+sys.dont_write_bytecode = True
+sys.path.insert(0, _AQUI)
+import senado as _senado
 
 
 def _get(url):
@@ -118,6 +138,31 @@ def achar_deputado(nome, uf):
     if len(parciais) > 1:
         return None, f"{len(parciais)} homonimos — juncao incerta, nao afirmo nada"
     return None, "nao esta entre os deputados em exercicio hoje"
+
+
+def achar_senador(nome, uf):
+    """Casa o candidato do TSE com o senador em exercicio, por nome e UF —
+    espelha achar_deputado(), mas contra a API do Senado, via senado.py.
+
+    Usa senado.pegar(), que cacheia por dia no mesmo diretorio que o comando
+    `senado.py --buscar` ja usa — a mesma rede, uma vez por dia, nao duas.
+    A juncao continua por NOME, nao por CPF: mesma ressalva de homonimo."""
+    try:
+        d, _url, _cache, _quando = _senado.pegar(f"/senador/lista/atual?uf={uf}", f"senadores_{uf}")
+    except Exception:
+        return None, "nao consegui consultar o Senado agora"
+    lista = _senado.caminhar(d, "ListaParlamentarEmExercicio", "Parlamentares", "Parlamentar")
+    nome_de = lambda p: limpar(p.get("IdentificacaoParlamentar", {}).get("NomeParlamentar", ""))
+    alvo = limpar(nome)
+    exatos = [p for p in lista if nome_de(p) == alvo]
+    if len(exatos) == 1:
+        return exatos[0], "nome identico"
+    parciais = [p for p in lista if alvo in nome_de(p) or nome_de(p) in alvo]
+    if len(parciais) == 1:
+        return parciais[0], "nome parcial — CONFERIR se e a mesma pessoa"
+    if len(parciais) > 1:
+        return None, f"{len(parciais)} homonimos — juncao incerta, nao afirmo nada"
+    return None, "nao esta entre os senadores em exercicio hoje"
 
 
 def proposicoes_do_eixo(id_dep, eixo, limite=3):
@@ -158,14 +203,27 @@ def cmd_cruzar(ids):
         print(f"{nome}  —  {cargo}  —  {d.get('partido_sigla','?')}  —  n {d.get('numero','?')}")
         print(f"  situacao do registro: {d.get('descricaoSituacao','sem dado')}")
 
-        executivo = limpar(cargo) in ("presidente", "governador", "prefeito")
-        federal   = limpar(cargo) in ("deputado federal", "senador")
+        executivo     = limpar(cargo) in ("presidente", "governador", "prefeito")
+        eh_dep_federal = limpar(cargo) == "deputado federal"
+        eh_senador     = limpar(cargo) == "senador"
+        federal        = eh_dep_federal or eh_senador
 
-        dep, motivo = (None, "cargo sem fonte federal")
+        # Deputado federal casa com a Camara; senador casa com o Senado — casas
+        # diferentes, fontes diferentes. Chamar a Camara para um candidato ao
+        # Senado e a MESMA falha que este cruzamento existe para evitar:
+        # ausencia lida como demerito, ou proposicao da casa errada atribuida
+        # a quem nunca a propos.
+        reg, motivo, casa = None, "cargo sem fonte federal", None
+        if eh_dep_federal:
+            reg, motivo, casa = *achar_deputado(nome, uf), "camara"
+        elif eh_senador:
+            reg, motivo, casa = *achar_senador(nome, uf), "senado"
         if federal:
-            dep, motivo = achar_deputado(nome, uf)
-            if dep:
-                print(f"  registro federal: id {dep['id']} ({motivo})")
+            if reg:
+                cod = reg["id"] if casa == "camara" else \
+                    reg.get("IdentificacaoParlamentar", {}).get("CodigoParlamentar", "?")
+                fonte = "Camara" if casa == "camara" else "Senado"
+                print(f"  registro federal: id {cod} ({motivo}) — fonte: {fonte}")
             else:
                 print(f"  registro federal: nao localizado — {motivo}")
         print()
@@ -175,8 +233,8 @@ def cmd_cruzar(ids):
             if executivo:
                 print("    proposta de governo protocolada no TSE — leia o documento.")
                 print("    A ferramenta nao resume nem avalia promessa.")
-            elif dep:
-                props, url = proposicoes_do_eixo(dep["id"], e)
+            elif reg and casa == "camara":
+                props, url = proposicoes_do_eixo(reg["id"], e)
                 if props:
                     termo = limpar(e).split()[0]
                     print(f"    proposicoes de autoria que a Camara indexa sob \"{termo}\":")
@@ -188,6 +246,12 @@ def cmd_cruzar(ids):
                     print("    nenhuma proposicao de autoria indexada sob essa palavra.")
                     print("    Isso e ausencia de PROPOSICAO COM ESSE TERMO, nao ausencia de")
                     print("    atuacao: a busca e por termo indexado, nao por tema.")
+            elif reg and casa == "senado":
+                cod = reg.get("IdentificacaoParlamentar", {}).get("CodigoParlamentar", "?")
+                print("    o Senado nao tem busca por palavra-chave igual a da Camara —")
+                print("    este cruzamento automatico por eixo ainda nao cobre o Senado.")
+                print(f"    Confira na mao: senado.py --registro {cod}")
+                print("    Isso e lacuna de COBERTURA desta ferramenta, nao ausencia de material.")
             else:
                 print("    sem material verificavel neste eixo para este candidato.")
                 print("    E ausencia de FONTE, nao juizo sobre a pessoa.")
@@ -199,10 +263,12 @@ def cmd_cruzar(ids):
     print()
     print("A busca de proposicao usa o indexador da Camara, que casa por termo")
     print("indexado — nem sempre a palavra aparece na ementa visivel. Leia a ementa")
-    print("antes de afirmar que a proposicao trata do seu eixo.")
+    print("antes de afirmar que a proposicao trata do seu eixo. Ela so existe para")
+    print("deputado federal: o cruzamento por eixo com o Senado ainda nao existe.")
     print()
-    print("A juncao com a Camara e feita por NOME, nao por CPF. Nome nao e chave:")
-    print("homonimo existe. Confira que e a mesma pessoa antes de usar o registro.")
+    print("A juncao com a Camara e com o Senado e feita por NOME, nao por CPF. Nome")
+    print("nao e chave: homonimo existe. Confira que e a mesma pessoa antes de usar")
+    print("o registro.")
     print()
     print("Este quadro nao pontua, nao ordena por merito e nao recomenda voto.")
     print("=" * L)

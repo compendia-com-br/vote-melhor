@@ -73,7 +73,7 @@ for entrada in mk["plugins"]:
 
     # 4) scripts embarcados e só stdlib
     fer = f"{d}/ferramentas"
-    for arq in ("coletar_tse.py", "consultar.py"):
+    for arq in ("coletar_tse.py", "consultar.py", "camara.py", "senado.py", "criterios.py", "verificar_dados.py"):
         if not os.path.exists(f"{fer}/{arq}"): f(f"{k}: falta ferramentas/{arq}")
     TERCEIROS = ("requests", "httpx", "pandas", "numpy", "bs4", "lxml", "selenium", "playwright")
     for arq in os.listdir(fer) if os.path.isdir(fer) else []:
@@ -88,6 +88,21 @@ for entrada in mk["plugins"]:
         except SyntaxError as e:
             f(f"{k}/{arq}: erro de sintaxe na linha {e.lineno}")
     print("   scripts: compilam, só stdlib")
+
+    # A duplicata na raiz ja existiu: 4 scripts com md5 identico, sem sincronizador,
+    # e o validador so conferia existencia. Medido em 07/09/2026. Um par que se
+    # desalinha nao da erro — da comportamento diferente entre o que se testa e o
+    # que se distribui, e isso nao aparece em teste nenhum.
+    EMBARCADOS = ["camara.py", "coletar_tse.py", "consultar.py", "criterios.py",
+                  "senado.py", "verificar_dados.py"]
+    for arq in EMBARCADOS:
+        # BASE, nao caminho relativo: testar_plugin.py ja resolve tudo por
+        # BASE (linha 11) e roda de qualquer diretorio. Caminho relativo aqui
+        # daria "0 falhas" para quem rodasse de outra pasta — um validador que
+        # passa por nao ter olhado.
+        if os.path.exists(os.path.join(BASE, "ferramentas", arq)):
+            f(f"duplicata: ferramentas/{arq} existe na raiz. A unica copia "
+              f"e plugins/vote-melhor/ferramentas/{arq}")
 
     # 5) NENHUM dado embarcado
     embarcado = []

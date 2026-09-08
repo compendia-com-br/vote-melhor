@@ -38,8 +38,15 @@ python3 "$F/coletar_tse.py" --plano <id>       # extrai o PDF do plano
 python3 "$F/camara.py"      --cobertura --uf <UF>
 python3 "$F/camara.py"      --buscar "<nome>" --uf <UF>
 python3 "$F/camara.py"      --registro <id_camara>
+python3 "$F/senado.py"      --cobertura --uf <UF>
+python3 "$F/senado.py"      --buscar "<nome>" --uf <UF>
+python3 "$F/senado.py"      --registro <id_senado>
 python3 "$F/criterios.py"   --cruzar <id> <id>
 ```
+
+**Registro de mandato depende do cargo: Senador vai para `senado.py`, Deputado Federal vai
+para `camara.py`.** Os demais cargos — deputado estadual, governador, presidente — não têm
+fonte de mandato nesta ferramenta; diga isso em vez de deixar a célula vazia sem explicação.
 
 **`--idade` vem antes de tudo, e o código de saída manda.** Se ele sair 2, a base venceu:
 pare e diga isso. Não monte dossiê sobre dado que a própria ferramenta recusou.
