@@ -27,6 +27,7 @@ LIMITE DE COBERTURA, que precisa ser dito em toda saida:
   por isso a saida diz, sempre, a que categoria a ausencia pertence.
 """
 import argparse, json, os, sys, time, unicodedata, urllib.request
+from datetime import datetime, timezone
 
 API = "https://dadosabertos.camara.leg.br/api/v2"
 RAIZ = os.environ.get("VOTE_MELHOR_DADOS") or os.path.join(
@@ -43,15 +44,47 @@ def limpar(t):
     return " ".join(t.lower().split())
 
 
+def agora():
+    """Mesmo formato de quando_arquivo() (isoformat com offset com dois
+    pontos) e de coletar_tse.py — comparar duas datas so funciona se as
+    duas usarem o mesmo formato."""
+    return datetime.now(timezone.utc).astimezone().replace(microsecond=0).isoformat()
+
+
+def quando_arquivo(caminho):
+    """ISO local a partir do mtime do arquivo de cache — mesma decisao do
+    commit que corrigiu este carimbo em coletar_tse.py (funcao quando_arquivo
+    la explica por que mtime, e nao o nome do arquivo nem agora())."""
+    ts = os.path.getmtime(caminho)
+    return datetime.fromtimestamp(ts).astimezone().replace(microsecond=0).isoformat()
+
+
+def formatar_coleta(*quandos):
+    """Uma ficha aqui junta varias chamadas (detalhe, proposicoes, orgaos,
+    frentes, historico), cada uma podendo vir do cache num instante diferente.
+    Um unico carimbo escolhido a esmo esconderia isso. Por isso: 'coletado em
+    X' quando todas batem, ou 'coletado entre X e Y' (mais antigo e mais novo)
+    quando nao — mesma ideia do MIN/MAX que exportar_gpt.py usa no FONTE.md."""
+    ordenados = sorted(quandos)
+    if ordenados[0] == ordenados[-1]:
+        return f"coletado em {ordenados[0]}"
+    return f"coletado entre {ordenados[0]} e {ordenados[-1]}"
+
+
 def pegar(caminho, apelido=None, forcar=False):
-    """GET com cache em disco. Devolve (dados, url, de_cache)."""
+    """GET com cache em disco. Devolve (dados, url, de_cache, quando).
+
+    quando e o instante em que O DADO foi obtido, nunca o desta chamada: da
+    rede, agora(); do cache, o mtime do arquivo. Um dado de cache carimbado
+    com agora() diz "coletado agora" para um dado que pode ter horas — o
+    mesmo defeito que o commit 493e59d corrigiu em coletar_tse.py."""
     url = f"{API}{caminho}"
     if apelido:
         os.makedirs(CACHE, exist_ok=True)
         arq = os.path.join(CACHE, f"{apelido}__{time.strftime('%Y-%m-%d')}.json")
         if os.path.exists(arq) and not forcar:
             with open(arq, encoding="utf-8") as f:
-                return json.load(f), url, True
+                return json.load(f), url, True, quando_arquivo(arq)
     req = urllib.request.Request(url, headers={
         "Accept": "application/json",
         "User-Agent": "vote-melhor/0.3 (Compendia; ferramenta de transparencia)",
@@ -63,25 +96,26 @@ def pegar(caminho, apelido=None, forcar=False):
     if apelido:
         with open(arq, "w", encoding="utf-8") as f:
             f.write(texto)
-    return dados, url, False
+    return dados, url, False, agora()
 
 
 def contar_paginas(caminho):
     """Conta o total lendo o link 'last', em vez de paginar tudo.
-    Uma requisicao em vez de N — e o servidor e publico."""
-    d, url, _ = pegar(f"{caminho}&itens=1")
+    Uma requisicao em vez de N — e o servidor e publico. Nunca usa cache
+    (pegar sem apelido), entao quando e sempre agora()."""
+    d, url, _, quando = pegar(f"{caminho}&itens=1")
     for l in d.get("links", []):
         if l.get("rel") == "last":
             import re
             m = re.search(r"pagina=(\d+)", l["href"])
             if m:
-                return int(m.group(1)), url
-    return len(d.get("dados", [])), url
+                return int(m.group(1)), url, quando
+    return len(d.get("dados", [])), url, quando
 
 
 def cmd_buscar(nome, uf, forcar):
-    d, url, cache = pegar(f"/deputados?siglaUf={uf}&itens=100",
-                          f"deputados_{uf}", forcar)
+    d, url, cache, _q = pegar(f"/deputados?siglaUf={uf}&itens=100",
+                              f"deputados_{uf}", forcar)
     alvo = limpar(nome)
     achados = [x for x in d["dados"] if alvo in limpar(x["nome"])]
     print(f"Deputados federais de {uf} em exercício com \"{nome}\" no nome")
@@ -99,14 +133,14 @@ def cmd_buscar(nome, uf, forcar):
 
 
 def cmd_registro(ident, forcar):
-    det, url_det, c1 = pegar(f"/deputados/{ident}", f"dep_{ident}", forcar)
+    det, url_det, c1, quando_det = pegar(f"/deputados/{ident}", f"dep_{ident}", forcar)
     p = det["dados"]
     st = p.get("ultimoStatus", {})
 
-    n_prop, url_prop = contar_paginas(f"/proposicoes?idDeputadoAutor={ident}")
-    org, url_org, _ = pegar(f"/deputados/{ident}/orgaos?itens=100", f"org_{ident}", forcar)
-    fre, url_fre, _ = pegar(f"/deputados/{ident}/frentes", f"fre_{ident}", forcar)
-    his, url_his, _ = pegar(f"/deputados/{ident}/historico", f"his_{ident}", forcar)
+    n_prop, url_prop, quando_prop = contar_paginas(f"/proposicoes?idDeputadoAutor={ident}")
+    org, url_org, _, quando_org = pegar(f"/deputados/{ident}/orgaos?itens=100", f"org_{ident}", forcar)
+    fre, url_fre, _, quando_fre = pegar(f"/deputados/{ident}/frentes", f"fre_{ident}", forcar)
+    his, url_his, _, quando_his = pegar(f"/deputados/{ident}/historico", f"his_{ident}", forcar)
 
     L = 66
     print("=" * L)
@@ -144,7 +178,7 @@ def cmd_registro(ident, forcar):
     for rot, u in (("detalhe", url_det), ("proposições", url_prop),
                    ("órgãos", url_org), ("frentes", url_fre), ("histórico", url_his)):
         print(f"  {rot:<12}: {u}")
-    print(f"  coletado em {time.strftime('%Y-%m-%dT%H:%M:%S%z')}")
+    print(f"  {formatar_coleta(quando_det, quando_prop, quando_org, quando_fre, quando_his)}")
     print()
     print("  Contagem de proposições é VOLUME de autoria, não qualidade nem")
     print("  aprovação. Este script não pontua, não ordena e não recomenda voto.")
@@ -160,7 +194,7 @@ def cmd_cobertura(uf, forcar):
     """Diz que fatia da cédula tem registro federal. Existe porque célula vazia
     num comparativo é lida como 'sem realização' — e sem esta conta ninguém sabe
     que o eixo cobre uma fatia pequena."""
-    d, url, cache = pegar(f"/deputados?siglaUf={uf}&itens=100", f"deputados_{uf}", forcar)
+    d, url, cache, _q = pegar(f"/deputados?siglaUf={uf}&itens=100", f"deputados_{uf}", forcar)
     n = len(d["dados"])
     print(f"Cobertura do registro de mandato federal em {uf}")
     print(f"fonte: {url}  [{'cache' if cache else 'rede'}]\n")

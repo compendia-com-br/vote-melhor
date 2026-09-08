@@ -55,6 +55,7 @@ LIMITE DE COBERTURA, que precisa ser dito em toda saida:
   nada", por isso a saida diz sempre a que categoria a ausencia pertence.
 """
 import argparse, json, os, sys, time, unicodedata, urllib.error, urllib.request
+from datetime import datetime, timezone
 
 API = "https://legis.senado.leg.br/dadosabertos"
 RAIZ = os.environ.get("VOTE_MELHOR_DADOS") or os.path.join(
@@ -95,15 +96,48 @@ def caminhar(obj, *chaves):
     return cur if isinstance(cur, list) else [cur]
 
 
+def agora():
+    """Mesmo formato de quando_arquivo() (isoformat com offset com dois
+    pontos) e de coletar_tse.py — comparar duas datas so funciona se as
+    duas usarem o mesmo formato."""
+    return datetime.now(timezone.utc).astimezone().replace(microsecond=0).isoformat()
+
+
+def quando_arquivo(caminho):
+    """ISO local a partir do mtime do arquivo de cache — mesma decisao do
+    commit que corrigiu este carimbo em coletar_tse.py (funcao quando_arquivo
+    la explica por que mtime, e nao o nome do arquivo nem agora())."""
+    ts = os.path.getmtime(caminho)
+    return datetime.fromtimestamp(ts).astimezone().replace(microsecond=0).isoformat()
+
+
+def formatar_coleta(*quandos):
+    """Uma ficha aqui junta varias chamadas (detalhe, mandatos, comissoes,
+    autorias, relatorias, votacoes), cada uma podendo vir do cache num
+    instante diferente. Um unico carimbo escolhido a esmo esconderia isso.
+    Por isso: 'coletado em X' quando todas batem, ou 'coletado entre X e Y'
+    (mais antigo e mais novo) quando nao — mesma ideia do MIN/MAX que
+    exportar_gpt.py usa no FONTE.md."""
+    ordenados = sorted(quandos)
+    if ordenados[0] == ordenados[-1]:
+        return f"coletado em {ordenados[0]}"
+    return f"coletado entre {ordenados[0]} e {ordenados[-1]}"
+
+
 def pegar(caminho, apelido=None, forcar=False):
-    """GET com cache em disco. Devolve (dados, url, de_cache)."""
+    """GET com cache em disco. Devolve (dados, url, de_cache, quando).
+
+    quando e o instante em que O DADO foi obtido, nunca o desta chamada: da
+    rede, agora(); do cache, o mtime do arquivo. Um dado de cache carimbado
+    com agora() diz "coletado agora" para um dado que pode ter horas — o
+    mesmo defeito que o commit 493e59d corrigiu em coletar_tse.py."""
     url = f"{API}{caminho}"
     if apelido:
         os.makedirs(CACHE, exist_ok=True)
         arq = os.path.join(CACHE, f"{apelido}__{time.strftime('%Y-%m-%d')}.json")
         if os.path.exists(arq) and not forcar:
             with open(arq, encoding="utf-8") as f:
-                return json.load(f), url, True
+                return json.load(f), url, True, quando_arquivo(arq)
     req = urllib.request.Request(url, headers={
         "Accept": "application/json",
         "User-Agent": "vote-melhor/0.3 (Compendia; ferramenta de transparencia)",
@@ -115,11 +149,11 @@ def pegar(caminho, apelido=None, forcar=False):
     if apelido:
         with open(arq, "w", encoding="utf-8") as f:
             f.write(texto)
-    return dados, url, False
+    return dados, url, False, agora()
 
 
 def cmd_buscar(nome, uf, forcar):
-    d, url, cache = pegar(f"/senador/lista/atual?uf={uf}", f"senadores_{uf}", forcar)
+    d, url, cache, _q = pegar(f"/senador/lista/atual?uf={uf}", f"senadores_{uf}", forcar)
     lista = caminhar(d, "ListaParlamentarEmExercicio", "Parlamentares", "Parlamentar")
     alvo = limpar(nome)
     achados = [p for p in lista if alvo in limpar(
@@ -143,7 +177,7 @@ def cmd_buscar(nome, uf, forcar):
 
 
 def cmd_registro(cod, forcar):
-    det, url_det, _ = pegar(f"/senador/{cod}", f"sen_{cod}", forcar)
+    det, url_det, _, quando_det = pegar(f"/senador/{cod}", f"sen_{cod}", forcar)
     achado = caminhar(det, "DetalheParlamentar", "Parlamentar")
     if not achado:
         print(f"ERRO: código {cod} não corresponde a nenhum senador nesta fonte.", file=sys.stderr)
@@ -153,20 +187,20 @@ def cmd_registro(cod, forcar):
     p = achado[0]
     ip = p.get("IdentificacaoParlamentar", {})
 
-    man, url_man, _ = pegar(f"/senador/{cod}/mandatos", f"man_{cod}", forcar)
+    man, url_man, _, quando_man = pegar(f"/senador/{cod}/mandatos", f"man_{cod}", forcar)
     mandatos = caminhar(man, "MandatoParlamentar", "Parlamentar", "Mandatos", "Mandato")
 
-    com, url_com, _ = pegar(f"/senador/{cod}/comissoes", f"com_{cod}", forcar)
+    com, url_com, _, quando_com = pegar(f"/senador/{cod}/comissoes", f"com_{cod}", forcar)
     comissoes = caminhar(com, "MembroComissaoParlamentar", "Parlamentar", "MembroComissoes", "Comissao")
     comissoes_hoje = [c for c in comissoes if not c.get("DataFim")]
 
-    aut, url_aut, _ = pegar(f"/senador/{cod}/autorias", f"aut_{cod}", forcar)
+    aut, url_aut, _, quando_aut = pegar(f"/senador/{cod}/autorias", f"aut_{cod}", forcar)
     autorias = caminhar(aut, "MateriasAutoriaParlamentar", "Parlamentar", "Autorias", "Autoria")
 
-    rel, url_rel, _ = pegar(f"/senador/{cod}/relatorias", f"rel_{cod}", forcar)
+    rel, url_rel, _, quando_rel = pegar(f"/senador/{cod}/relatorias", f"rel_{cod}", forcar)
     relatorias = caminhar(rel, "MateriasRelatoriaParlamentar", "Parlamentar", "Relatorias", "Relatoria")
 
-    vot, url_vot, _ = pegar(f"/senador/{cod}/votacoes", f"vot_{cod}", forcar)
+    vot, url_vot, _, quando_vot = pegar(f"/senador/{cod}/votacoes", f"vot_{cod}", forcar)
     votacoes = caminhar(vot, "VotacaoParlamentar", "Parlamentar", "Votacoes", "Votacao")
 
     L = 66
@@ -208,7 +242,7 @@ def cmd_registro(cod, forcar):
     for rot, u in (("detalhe", url_det), ("mandatos", url_man), ("comissões", url_com),
                    ("autorias", url_aut), ("relatorias", url_rel), ("votações", url_vot)):
         print(f"  {rot:<12}: {u}")
-    print(f"  coletado em {time.strftime('%Y-%m-%dT%H:%M:%S%z')}")
+    print(f"  {formatar_coleta(quando_det, quando_man, quando_com, quando_aut, quando_rel, quando_vot)}")
     print()
     print("  Este script não pontua, não ordena e não recomenda voto.")
     print()
@@ -223,7 +257,7 @@ def cmd_cobertura(uf, forcar):
     """Diz que fatia da cédula tem registro de senador. Existe pela mesma razão
     do camara.py: célula vazia num comparativo é lida como 'sem realização' —
     e sem esta conta ninguém sabe que o eixo cobre só quem está em exercício."""
-    d, url, cache = pegar(f"/senador/lista/atual?uf={uf}", f"senadores_{uf}", forcar)
+    d, url, cache, _q = pegar(f"/senador/lista/atual?uf={uf}", f"senadores_{uf}", forcar)
     lista = caminhar(d, "ListaParlamentarEmExercicio", "Parlamentares", "Parlamentar")
     n = len(lista)
     print(f"Cobertura do registro de mandato de senador em {uf}")
