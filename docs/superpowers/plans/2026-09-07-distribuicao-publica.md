@@ -1573,17 +1573,35 @@ varre o conteúdo de todo blob de todo commit alcançável por qualquer ref, rea
 extenso. `--autoteste` prova, num repositório git temporário, que ele acharia um
 documento se houvesse um — rode sempre antes de confiar no resultado do repositório real.
 
-**Esperado no repositório real (medido em 07/09/2026): a varredura ACHA e sai 2 — isso não
-é reprovação automática.** 116 achados brutos nesta execução, e nenhum é documento real:
-a maioria (108) é o `id` público de candidatura do TSE colidindo por coincidência com o
-dígito verificador de CPF (11 dígitos) ou título (12 dígitos) — o mesmo `id` que já sai
-impresso em toda ficha, porque não é documento — e o resto é o CPF sintético de exemplo
-(`52998224725`) que a própria `testes/teste_verificar_dados.py` e o plano injetam de
-propósito como controle. Cada achado do script real precisa ser **conferido um a um**
-contra a coluna e o commit que ele aponta antes de seguir — a varredura aponta onde olhar,
-não substitui o olhar. `dados/` está no `.gitignore` desde antes do primeiro commit, e
-isso foi conferido em 02/09 — mas conferir de novo custa um comando e o erro custa um
-vazamento.
+**Esperado no repositório real (medido em 08/09/2026): a varredura sai 0, e imprime 121
+sequências EXCLUÍDAS.** Até 08/09 ela saía 2 com 121 achados brutos, e a instrução aqui
+era conferir um a um e seguir assim mesmo. Isso foi corrigido, porque **portão que recusa
+sempre é portão que alguém aprende a ignorar** — e no dia em que houvesse documento de
+verdade no meio, ele já não protegeria. Os 121 foram medidos um a um em 08/09 e nenhum
+era documento real:
+
+- **108** eram o `id` público de candidatura do TSE, no blob de
+  `gpt/conhecimento/candidatos-2026.csv` do commit `f217591af9a0`, de quando o CSV ainda
+  era versionado (60 colidindo com o dígito verificador de CPF, 48 com o de título). O
+  mesmo `id` que já sai impresso em toda ficha, porque não é documento.
+- **13** eram o CPF sintético de exemplo (`52998224725`) que `testes/teste_verificar_dados.py`
+  e este plano injetam de propósito como controle.
+
+`varrer_historico.py` agora aplica a MESMA exclusão estrutural que
+`exportar_gpt.relatorio_pos_escrita()` já aplicava — comparação **por valor da própria
+linha**, dentro de blob em formato CSV com coluna `id` — mais uma lista curta de exemplos
+sintéticos declarados, travada em tamanho pelo `--autoteste`.
+
+**Toda exclusão é contada e impressa, por caminho, mesmo num resultado limpo** — é assim
+que ela continua auditável em vez de virar válvula de escape. Os números impressos têm que
+ser explicáveis um a um, como qualquer achado: se aparecer exclusão num caminho novo, ou
+em número diferente, isso é motivo para olhar antes de seguir. O `--autoteste` prova, num
+repositório git temporário, que a varredura **ainda acha** um documento numa coluna que não
+é o `id` de um CSV, e que o mesmo valor perdoado como `id` de uma linha é achado quando
+aparece noutra linha — senão a correção teria afrouxado a varredura em geral.
+
+`dados/` está no `.gitignore` desde antes do primeiro commit, e isso foi conferido em
+02/09 — mas conferir de novo custa um comando e o erro custa um vazamento.
 
 Só depois disso, e só com o sim dele:
 

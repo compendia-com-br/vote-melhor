@@ -74,6 +74,28 @@ def titulo_valido(d):
     return int(d[11]) in _dv_titulo(soma2)
 
 
+def montar_cpf_sintetico(base9):
+    """Fabrica um CPF com os dois digitos verificadores corretos, para servir
+    de CONTROLE POSITIVO. Mesma razao de montar_titulo_sintetico: a conta que
+    gera e a mesma que verifica — controle montado por outra conta nao prova
+    nada sobre esta.
+
+    Existe tambem por uma segunda razao, especifica: varrer_historico.py tem
+    uma lista curta de EXEMPLOS SINTETICOS declarados que ele perdoa por
+    valor. Um controle positivo escrito por extenso no codigo corre o risco
+    de acabar nessa lista — e controle perdoado pela propria exclusao que ele
+    deveria vigiar nao vigia nada. Gerado em tempo de execucao, o numero nao
+    esta escrito em lugar nenhum para ser perdoado.
+    """
+    d = str(base9)
+    if len(d) != 9 or not d.isdigit():
+        raise ValueError("base9 tem que ser exatamente 9 digitos")
+    for n in (9, 10):
+        soma = sum(int(d[i]) * ((n + 1) - i) for i in range(n))
+        d += str((soma * 10) % 11 % 10)
+    return d
+
+
 def montar_titulo_sintetico(sequencial8, uf2):
     """Fabrica um titulo valido para servir de CONTROLE POSITIVO no teste.
     Existe aqui, e nao no teste, para que a mesma conta gere e verifique — um
