@@ -1017,7 +1017,7 @@ colchetes que levantam `KeyError` no primeiro dia em que o Senado mudar o envelo
 
 ```bash
 python3 plugins/vote-melhor/ferramentas/senado.py --cobertura --uf MG
-python3 plugins/vote-melhor/ferramentas/senado.py --buscar "cleitinho"
+python3 plugins/vote-melhor/ferramentas/senado.py --buscar "<trecho do nome>"
 ```
 
 Esperado: senadores de MG em exercício, com nome, partido e código; e a busca por nome

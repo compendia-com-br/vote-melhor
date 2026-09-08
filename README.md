@@ -65,7 +65,7 @@ python3 plugins/vote-melhor/ferramentas/coletar_tse.py --listar MG
 python3 plugins/vote-melhor/ferramentas/consultar.py --uf MG --cargo Governador
 
 # 3. Monta a ficha de UM candidato, com o id que apareceu no passo 2
-python3 plugins/vote-melhor/ferramentas/consultar.py --ficha 130002539775
+python3 plugins/vote-melhor/ferramentas/consultar.py --ficha <id>
 ```
 
 O passo 3 pede `id`, não nome, porque nome de urna se repete entre candidatos e o `id` não.

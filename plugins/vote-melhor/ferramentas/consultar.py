@@ -5,7 +5,7 @@
 # COMO RODAR (da raiz de um clone; instalado, use ${CLAUDE_PLUGIN_ROOT}/ferramentas/):
 #   python3 plugins/vote-melhor/ferramentas/consultar.py --uf MG --cargo "DEPUTADO FEDERAL"
 #   python3 plugins/vote-melhor/ferramentas/consultar.py --nome "trecho do nome"
-#   python3 plugins/vote-melhor/ferramentas/consultar.py --ficha 130002539775
+#   python3 plugins/vote-melhor/ferramentas/consultar.py --ficha <id>
 # A ficha sai sempre com os mesmos campos, na mesma ordem, com "sem dado" onde faltar.
 # Esse formato fixo é o contrato: o dossiê se apoia nele e não pode mudar de forma.
 
