@@ -817,8 +817,7 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
                    (ident,)).fetchone()
     cx.close()
     print()
-    print(f"Plano de governo — {r['nomeUrna'] if r else ident}"
-          f"{f' (nº {r[chr(39)+chr(39)]})' if False else ''}")
+    print(f"Plano de governo — {r['nomeUrna'] if r else ident}")
     if r: print(f"  cargo: {r['cargo_nome']}  |  numero na urna: {r['numero']}")
     for x in saidas:
         tam = os.path.getsize(x)

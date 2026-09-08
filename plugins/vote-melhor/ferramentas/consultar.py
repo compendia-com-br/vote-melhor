@@ -47,11 +47,16 @@ def vazio(x):
     return x is None or str(x).strip() in VAZIOS
 
 def limpar(texto):
-    """minúsculas e sem acento, para comparar nome sem tropeçar em Ç e til."""
+    """minúsculas, sem acento e sem espaço duplicado — mesmo comportamento
+    de limpar() em camara.py e senado.py. Faltava o .split()/" ".join() aqui:
+    medido, "--cargo \"Deputado  Federal\"" (dois espaços) não casava
+    "DEPUTADO FEDERAL" do banco e saía "Nenhum candidato encontrado." com
+    código 0 — zero calado, não erro de sintaxe."""
     if texto is None:
         return ""
     s = unicodedata.normalize("NFKD", str(texto))
-    return "".join(c for c in s if not unicodedata.combining(c)).lower()
+    sem_acento = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    return " ".join(sem_acento.split())
 
 def abrir():
     if not os.path.exists(BANCO):
