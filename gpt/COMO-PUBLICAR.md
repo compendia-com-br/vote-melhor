@@ -83,7 +83,8 @@ passos 2 e 5.
 A base tem data e envelhece — situação de candidatura muda até a véspera da eleição (4 de
 outubro de 2026). Para atualizar:
 
-1. `python3 ferramentas/coletar_tse.py --pais` — recoleta as 27 UFs mais BR do TSE.
+1. `python3 plugins/vote-melhor/ferramentas/coletar_tse.py --pais` — recoleta as 27 UFs
+   mais BR do TSE.
 2. `python3 ferramentas/exportar_gpt.py` — regrava `gpt/conhecimento/candidatos-2026.csv`
    e `gpt/conhecimento/FONTE.md` com a nova data de coleta.
 3. Na tela **Configure** do GPT (mesmo link do passo 1), em **Knowledge**, remova o CSV
