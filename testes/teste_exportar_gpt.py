@@ -249,6 +249,64 @@ with tempfile.TemporaryDirectory() as d:
     checa("contagem por cargo bate (Senador = 1)", "| Senador | 1 |" in texto,
           "linha '| Senador | 1 |' nao encontrada em FONTE.md")
 
+# --- CONTROLE 7: valor vazio sai como CELULA VAZIA, nunca como zero -------
+# O GPT lia gastoCampanha="0.0" como fato e imprimia "Gasto declarado de
+# campanha: R$ 0,00" sobre pessoa real (medido no cenario 2 de
+# testes/RED-gpt-2026-09-07.md). O TSE grava "0.0" enquanto nao ha prestacao
+# de contas publicada: 20.005 de 20.005 candidaturas na base real. O conserto
+# e na exportacao, e nao na prosa das instrucoes — valor que nao esta no
+# arquivo e mais forte que regra que o modelo tem que lembrar.
+print("CONTROLE 7 — valor vazio ('0.0', 'None', 'null') sai como celula vazia")
+with tempfile.TemporaryDirectory() as d:
+    banco = os.path.join(d, "tse.sqlite")
+    linha = linha_generica("c7", id="1", gastoCampanha="0.0",
+                            nomeColigacao="None", descricaoTotalizacao="null")
+    montar_banco(banco, eg.COLUNAS, [linha])
+
+    csv_saida = os.path.join(d, "saida.csv")
+    total, _ = eg.exportar(banco, csv_saida)
+    with open(csv_saida, encoding="utf-8") as fh:
+        celulas = dict(zip(*list(csv.reader(fh))[:2]))
+
+    checa("gastoCampanha '0.0' vira celula vazia, nao '0.0' nem '0'",
+          celulas["gastoCampanha"] == "",
+          f"gastoCampanha={celulas['gastoCampanha']!r}")
+    checa("a coluna CONTINUA no cabecalho (some o valor, nao a coluna)",
+          "gastoCampanha" in celulas, f"colunas={list(celulas)}")
+    checa("'None' em texto tambem vira celula vazia",
+          celulas["nomeColigacao"] == "", f"nomeColigacao={celulas['nomeColigacao']!r}")
+    checa("'null' em texto tambem vira celula vazia",
+          celulas["descricaoTotalizacao"] == "",
+          f"descricaoTotalizacao={celulas['descricaoTotalizacao']!r}")
+
+    # Controle NEGATIVO, no mesmo mecanismo: a regra nao pode ser peneira
+    # geral. Valor que carrega informacao tem que sobreviver — inclusive
+    # "0" e "False", que parecem vazio e nao sao.
+    checa("valor comum sobrevive intacto", celulas["nomeUrna"] == "c7_nomeUrna",
+          f"nomeUrna={celulas['nomeUrna']!r}")
+    banco2 = os.path.join(d, "tse2.sqlite")
+    montar_banco(banco2, eg.COLUNAS, [linha_generica(
+        "c7b", id="2", numero="0", st_REELEICAO="False", candidatoApto="False")])
+    csv2 = os.path.join(d, "saida2.csv")
+    eg.exportar(banco2, csv2)
+    with open(csv2, encoding="utf-8") as fh:
+        c2 = dict(zip(*list(csv.reader(fh))[:2]))
+    checa("'0' NAO e vazio (numero na urna 0 e um numero)", c2["numero"] == "0",
+          f"numero={c2['numero']!r}")
+    checa("'False' NAO e vazio (e o valor literal do campo)",
+          c2["st_REELEICAO"] == "False" and c2["candidatoApto"] == "False",
+          f"st_REELEICAO={c2['st_REELEICAO']!r} candidatoApto={c2['candidatoApto']!r}")
+
+    # FONTE.md tem que CONTAR o vazio, nao descreve-lo de memoria.
+    fonte_temp = os.path.join(d, "FONTE.md")
+    eg.escrever_fonte(banco, fonte_temp, total=total)
+    texto_fonte = open(fonte_temp, encoding="utf-8").read()
+    checa("FONTE.md diz que vazio nao e zero",
+          "vazio NÃO é zero" in texto_fonte, "secao nao encontrada em FONTE.md")
+    checa("FONTE.md conta a coluna vazia em vez de descreve-la de memoria",
+          "| `gastoCampanha` | 1 (100%)" in texto_fonte,
+          "contagem de gastoCampanha nao encontrada em FONTE.md")
+
 print()
 if falhas:
     print(f"REPROVADO: {len(falhas)} controle(s) — {falhas}")

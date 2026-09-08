@@ -20,6 +20,22 @@ BANCO = os.path.join(RAIZ, "dados", "tse.sqlite")
 
 SEM = "sem dado"
 
+# O que o TSE grava querendo dizer "nao ha dado". Fica em constante de modulo,
+# e nao escondido dentro de v(), porque ferramentas/exportar_gpt.py precisa da
+# MESMA regra para escrever celula vazia no CSV que sobe para o GPT. Duas
+# listas iguais em dois arquivos derivam sem dar erro nenhum: no dia em que uma
+# mudasse, o GPT voltaria a afirmar "R$ 0,00" sobre pessoa real e nada acusaria.
+VAZIOS = ("", "None", "null", "null-null", "0.0")
+
+def vazio(x):
+    """True quando o valor nao carrega informacao nenhuma.
+
+    "0.0" entra na lista porque e o que o TSE grava em gastoCampanha enquanto
+    nao ha prestacao de contas publicada — medido em 07/09/2026: 20.005 de
+    20.005 candidaturas, 100%. Zero de gasto seria um fato sobre a campanha;
+    ausencia de prestacao de contas nao e. Vazio nao e zero."""
+    return x is None or str(x).strip() in VAZIOS
+
 def limpar(texto):
     """minúsculas e sem acento, para comparar nome sem tropeçar em Ç e til."""
     if texto is None:
@@ -48,9 +64,7 @@ def v(linha, campo):
         x = linha[campo]
     except (IndexError, KeyError):
         return SEM
-    if x is None or str(x).strip() in ("", "None", "null", "null-null", "0.0"):
-        return SEM
-    return str(x)
+    return SEM if vazio(x) else str(x)
 
 # ---------------------------------------------------------------------------
 # FORMATO FIXO DA FICHA. Ordem e rótulos ficam aqui, no código, de propósito:

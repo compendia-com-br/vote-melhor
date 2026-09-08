@@ -37,6 +37,11 @@ sys.dont_write_bytecode = True
 RAIZ_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(RAIZ_REPO, "plugins", "vote-melhor", "ferramentas"))
 import verificar_dados as vd
+# consultar.vazio() e a MESMA regra que a ficha do plugin usa para imprimir
+# "sem dado". Importada, nao copiada: se o CSV do GPT tivesse uma copia da
+# regra, as duas derivariam em silencio. consultar.py e importavel — todo o
+# codigo de CLI dele esta atras de `if __name__ == "__main__"`.
+import consultar as cs
 
 # O dado nunca mora dentro do plugin nem deste repositório: mesma resolução de
 # consultar.py e coletar_tse.py. VOTE_MELHOR_DADOS sobrescreve — é o que o
@@ -82,7 +87,24 @@ def exportar(banco, destino_csv):
     """Lê candidatura pela lista de permissão e escreve o CSV. Devolve o
     total de linhas e a lista de ids na MESMA ordem em que foram escritas —
     usada só para a exclusão estrutural do id público na releitura abaixo,
-    nunca para decidir o que entra no arquivo."""
+    nunca para decidir o que entra no arquivo.
+
+    CÉLULA VAZIA, NÃO VALOR FALSO. Todo valor passa por consultar.vazio() —
+    a mesma regra que faz a ficha do plugin imprimir "sem dado" — e o que ela
+    reprova sai como célula vazia. O caso que obriga isto: `gastoCampanha`
+    vale "0.0" em 20.005 de 20.005 candidaturas (medido em 07/09/2026), porque
+    o TSE ainda não publicou prestação de contas. O GPT lia esse zero como
+    fato e imprimia "Gasto declarado de campanha: R$ 0,00" sobre pessoa real —
+    medido, não suposto, no cenário 2 de testes/RED-gpt-2026-09-07.md.
+
+    O conserto é aqui e não na prosa das instruções de propósito: regra que o
+    modelo tem que lembrar é mais fraca que valor que não está no arquivo.
+
+    A coluna FICA no cabeçalho — ela se preenche sozinha quando o TSE publicar
+    as contas, e tirá-la agora obrigaria a mexer na lista de permissão depois.
+    Medido nesta base: a regra esvazia 20.005 células, todas de gastoCampanha,
+    e nenhuma célula de nenhuma das outras 16 colunas — ela é exatamente do
+    tamanho do problema que resolve, não uma peneira geral."""
     cx = sqlite3.connect(banco)
     cx.row_factory = sqlite3.Row
     campos = ", ".join(f'"{c}"' for c in COLUNAS)
@@ -98,7 +120,7 @@ def exportar(banco, destino_csv):
         w = csv.writer(fh)
         w.writerow(COLUNAS)
         for linha in linhas:
-            w.writerow([linha[c] for c in COLUNAS])
+            w.writerow(["" if cs.vazio(linha[c]) else linha[c] for c in COLUNAS])
             ids_por_linha.append(str(linha["id"]))
     return len(linhas), ids_por_linha
 
@@ -154,10 +176,24 @@ def escrever_fonte(banco, caminho_md, total):
     (que não são iguais — a coleta de 28 unidades levou tempo, com pausa
     obrigatória entre requisições), URL de origem, licença, e a contagem por
     UF e por cargo — a mesma prova por CONTEÚDO que este script confere,
-    só que em formato de leitura."""
+    só que em formato de leitura.
+
+    Conta também, coluna a coluna, quantas células saem VAZIAS no CSV — pela
+    mesma consultar.vazio() que exportar() aplica. Isso é contado, não
+    escrito à mão: no dia em que o TSE publicar a prestação de contas,
+    `gastoCampanha` deixa de aparecer nesta seção sozinho, sem ninguém
+    lembrar de editar o texto."""
     cx = sqlite3.connect(banco)
     minimo, maximo = cx.execute(
         "SELECT MIN(coletado_em), MAX(coletado_em) FROM candidatura").fetchone()
+    cx.row_factory = sqlite3.Row
+    campos = ", ".join(f'"{c}"' for c in COLUNAS)
+    vazias = {c: 0 for c in COLUNAS}
+    for linha in cx.execute(f"SELECT {campos} FROM candidatura"):
+        for c in COLUNAS:
+            if cs.vazio(linha[c]):
+                vazias[c] += 1
+    cx.row_factory = None
     por_uf = cx.execute(
         "SELECT ufCandidatura, COUNT(*) FROM candidatura "
         "GROUP BY ufCandidatura ORDER BY ufCandidatura").fetchall()
@@ -197,6 +233,40 @@ def escrever_fonte(banco, caminho_md, total):
     ]
     for cargo, n in por_cargo:
         linhas.append(f"| {cargo} | {n} |")
+
+    # --- Célula vazia: o que ela quer dizer -------------------------------
+    com_vazio = [(c, n) for c, n in vazias.items() if n]
+    linhas += [
+        "",
+        "## Colunas que vêm vazias — vazio NÃO é zero",
+        "",
+        "**Célula vazia significa que o dado não existe nesta base.** Não é o valor zero,",
+        "não é \"nenhum\", não é \"não declarou\". Nunca reporte célula vazia como valor,",
+        "e nunca a use para comparar candidatos: o que falta aqui falta para todo mundo,",
+        "e não diz nada sobre nenhuma pessoa em particular.",
+        "",
+    ]
+    if com_vazio:
+        linhas += [
+            f"Contado nesta coleta, sobre as {total} candidaturas:",
+            "",
+            "| Coluna | células vazias |",
+            "|---|---:|",
+        ]
+        for c, n in com_vazio:
+            marca = " (100%)" if n == total else ""
+            linhas.append(f"| `{c}` | {n}{marca} |")
+        if vazias.get("gastoCampanha") == total and total:
+            linhas += [
+                "",
+                "`gastoCampanha` vem vazia em **todas** as linhas porque o TSE ainda não",
+                "publicou a prestação de contas desta eleição. A coluna fica no arquivo e se",
+                "preenche sozinha quando as contas saírem. Enquanto isso, ela não é eixo de",
+                "comparação: não existe candidato que gastou mais nem candidato que gastou",
+                "menos nesta base — existe uma prestação de contas que ainda não foi publicada.",
+            ]
+    else:
+        linhas.append("Nesta coleta, nenhuma das 17 colunas tem célula vazia.")
     linhas.append("")
 
     with open(caminho_md, "w", encoding="utf-8") as fh:
