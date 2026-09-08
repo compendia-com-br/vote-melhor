@@ -55,7 +55,7 @@ Ferramenta gratuita de utilidade pública é para quem não usa Claude Code tamb
 `/vote-melhor` acima só automatiza os mesmos seis scripts — dá para rodá-los sozinho, com
 Python 3 puro, sem instalar nada.
 
-A partir da raiz deste repositório clonado, três passos levam à primeira ficha:
+A partir da raiz deste repositório clonado, quatro passos levam à primeira ficha completa:
 
 ```
 # 1. Baixa o cadastro de candidatos de uma UF (aqui, MG) direto do TSE
@@ -64,12 +64,22 @@ python3 plugins/vote-melhor/ferramentas/coletar_tse.py --listar MG
 # 2. Lista quem foi baixado, filtrando por cargo — cada linha traz um id
 python3 plugins/vote-melhor/ferramentas/consultar.py --uf MG --cargo Governador
 
-# 3. Monta a ficha de UM candidato, com o id que apareceu no passo 2
+# 3. Baixa o detalhe de UM candidato, com o id que apareceu no passo 2
+python3 plugins/vote-melhor/ferramentas/coletar_tse.py --detalhe <id> --uf MG
+
+# 4. Monta a ficha desse candidato
 python3 plugins/vote-melhor/ferramentas/consultar.py --ficha <id>
 ```
 
-O passo 3 pede `id`, não nome, porque nome de urna se repete entre candidatos e o `id` não.
-Sem o passo 2 não tem como saber o `id` de ninguém.
+Os passos 3 e 4 pedem `id`, não nome, porque nome de urna se repete entre candidatos e o
+`id` não. Sem o passo 2 não tem como saber o `id` de ninguém.
+
+O passo 3 é separado do passo 1 de propósito: a listagem traz todo mundo de uma vez, mas o
+detalhe é **uma requisição por pessoa** — baixar o de todos junto seriam centenas de
+requisições ao TSE para ver a ficha de um. Pular o passo 3 funciona, e a ficha sai; o que
+ela não traz, medido em MG, são 11 dos 22 campos — nascimento, naturalidade, sexo, cor/raça,
+estado civil, instrução, ocupação, bens declarados, gasto de campanha e o motivo da
+situação saem como `sem dado (detalhe não coletado)`.
 
 Cada script tem `--help` com o resto das opções — buscar por nome, coletar o país inteiro
 de uma vez, registro de mandato na Câmara e no Senado. Onde o dado fica está abaixo, em
