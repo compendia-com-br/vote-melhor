@@ -354,24 +354,36 @@ def coletar_alvo(cx, uf, pausa, forcar, imprimir=True):
     return por_cargo
 
 def cmd_listar(uf, pausa, forcar):
+    """Coleta UM alvo. Falha de transporte sai por ERRO legivel e codigo 2.
+
+    Aqui nao ha' 27 alvos para proteger — o motivo de nao deixar o traceback
+    subir e' outro: este e' o comando que o bloco de recuperacao de cmd_pais
+    manda a pessoa rodar. Se o que derrubou a varredura foi o DNS, e o DNS
+    ainda esta ruim, seria justamente o caminho de conserto a responder com
+    um traceback."""
     uf = uf.upper()
     cx = abrir_banco()
-    print(f"Listagem de {uf} — eleição {ANO} (id {ID_ELEICAO})")
-    print(f"{'cargo':<28} {'cód':>4} {'candidatos':>10} {'tempo':>7} {'tamanho':>9}  origem")
     try:
-        por_cargo = coletar_alvo(cx, uf, pausa, forcar)
-    except BloqueioTSE as e:
-        print(f"\nERRO: {e}", file=sys.stderr)
+        print(f"Listagem de {uf} — eleição {ANO} (id {ID_ELEICAO})")
+        print(f"{'cargo':<28} {'cód':>4} {'candidatos':>10} {'tempo':>7} {'tamanho':>9}  origem")
+        try:
+            por_cargo = coletar_alvo(cx, uf, pausa, forcar)
+        except FALHAS_DE_TRANSPORTE as e:
+            print(f"\nERRO: {descrever_falha(e)}", file=sys.stderr)
+            sys.exit(2)
+        total = sum(por_cargo.values())
+        if alvo_mudo(por_cargo):
+            print(f"\nATENÇÃO: {uf} devolveu ZERO em todos os cargos. Isso é anomalia, "
+                  f"não resultado — toda UF elege ao menos deputado.")
+        print(f"\nTotal gravado: {total} candidatos. "
+              f"Requisições de rede nesta execução: {_requisicoes}.")
+        print(f"Banco: {BANCO}")
+    finally:
+        # Fecha em TODA saida: o fim feliz, o sys.exit(2) acima (SystemExit
+        # atravessa o finally) e o defeito de codigo que sobe. O cx.close()
+        # solto no fim so cobria o primeiro, e o de dentro do except so o
+        # segundo — os dois dependiam de alguem lembrar de cada saida.
         cx.close()
-        sys.exit(2)
-    total = sum(por_cargo.values())
-    if alvo_mudo(por_cargo):
-        print(f"\nATENÇÃO: {uf} devolveu ZERO em todos os cargos. Isso é anomalia, "
-              f"não resultado — toda UF elege ao menos deputado.")
-    print(f"\nTotal gravado: {total} candidatos. "
-          f"Requisições de rede nesta execução: {_requisicoes}.")
-    print(f"Banco: {BANCO}")
-    cx.close()
 
 def cmd_pais(pausa, forcar):
     """Varre os 28 alvos. Falha de REDE de um nao derruba os outros.
@@ -381,36 +393,40 @@ def cmd_pais(pausa, forcar):
     que se perderia sem isso nao e' so o resto da varredura: e' o bloco de
     recuperacao do fim, que e' a unica coisa que diz por onde retomar."""
     cx = abrir_banco()
-    print(f"Coleta nacional — eleição {ANO} (id {ID_ELEICAO}) — {len(ALVOS)} alvos")
-    print("BR é a cédula presidencial: cargo 1 só devolve candidato ali.\n")
-    print(f"{'alvo':<6} {'candidatos':>11}  detalhe por cargo")
-    falharam, mudos, total = [], [], 0
-    for uf in ALVOS:
-        try:
-            por_cargo = coletar_alvo(cx, uf, pausa, forcar, imprimir=False)
-        except FALHAS_DE_TRANSPORTE as e:
-            descricao = descrever_falha(e)
-            falharam.append((uf, descricao))
-            print(f"{uf:<6} {'FALHOU':>11}  {descricao}")
-            continue
-        n = sum(por_cargo.values())
-        total += n
-        if alvo_mudo(por_cargo):
-            mudos.append(uf)
-        detalhe = " ".join(f"{c}:{v}" for c, v in por_cargo.items() if v)
-        print(f"{uf:<6} {n:>11}  {detalhe or '(tudo zero)'}")
-    print(f"\nTotal gravado: {total} candidaturas. "
-          f"Requisições de rede: {_requisicoes}.")
-    print(f"Banco: {BANCO}")
-    if mudos:
-        print(f"\nANOMALIA: {len(mudos)} alvo(s) devolveram zero em todos os cargos: "
-              f"{', '.join(mudos)}. Isso não é resultado — é coleta que falhou calada.")
-    if falharam:
-        print(f"\n{len(falharam)} alvo(s) falharam. Repita só eles:")
-        for uf, _ in falharam:
-            print(f"  python3 {_IRMAO('coletar_tse.py')} --listar {uf}")
-    cx.close()
-    return 2 if (falharam or mudos) else 0
+    try:
+        print(f"Coleta nacional — eleição {ANO} (id {ID_ELEICAO}) — {len(ALVOS)} alvos")
+        print("BR é a cédula presidencial: cargo 1 só devolve candidato ali.\n")
+        print(f"{'alvo':<6} {'candidatos':>11}  detalhe por cargo")
+        falharam, mudos, total = [], [], 0
+        for uf in ALVOS:
+            try:
+                por_cargo = coletar_alvo(cx, uf, pausa, forcar, imprimir=False)
+            except FALHAS_DE_TRANSPORTE as e:
+                descricao = descrever_falha(e)
+                falharam.append((uf, descricao))
+                print(f"{uf:<6} {'FALHOU':>11}  {descricao}")
+                continue
+            n = sum(por_cargo.values())
+            total += n
+            if alvo_mudo(por_cargo):
+                mudos.append(uf)
+            detalhe = " ".join(f"{c}:{v}" for c, v in por_cargo.items() if v)
+            print(f"{uf:<6} {n:>11}  {detalhe or '(tudo zero)'}")
+        print(f"\nTotal gravado: {total} candidaturas. "
+              f"Requisições de rede: {_requisicoes}.")
+        print(f"Banco: {BANCO}")
+        if mudos:
+            print(f"\nANOMALIA: {len(mudos)} alvo(s) devolveram zero em todos os cargos: "
+                  f"{', '.join(mudos)}. Isso não é resultado — é coleta que falhou calada.")
+        if falharam:
+            print(f"\n{len(falharam)} alvo(s) falharam. Repita só eles:")
+            for uf, _ in falharam:
+                print(f"  python3 {_IRMAO('coletar_tse.py')} --listar {uf}")
+        return 2 if (falharam or mudos) else 0
+    finally:
+        # Fecha inclusive quando um defeito de codigo sobe do laco — o
+        # `return` acima passa pelo finally, e a excecao tambem.
+        cx.close()
 
 def cmd_detalhe(ident, uf, pausa, forcar):
     uf = uf.upper()

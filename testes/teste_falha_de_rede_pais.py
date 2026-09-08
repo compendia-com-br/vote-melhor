@@ -309,6 +309,68 @@ with ambiente_isolado():
         checa("codigo de saida 2", codigo == 2, f"codigo={codigo}")
 
 
+# --- CONTROLE 6 — a conexao sqlite e' fechada em TODOS os caminhos de saida --
+# cmd_pais fechava a conexao na ultima linha, que so e' alcancada quando a
+# funcao chega ao fim. Um defeito de codigo subindo do laco pula o close.
+# Na linha de comando o processo morre em seguida e o custo fica escondido —
+# mas cmd_pais tambem e' chamado de dentro de outro processo, e "o sistema
+# operacional limpa depois" nao e' fechar. O `finally` e a unica forma que
+# nao depende de alguem lembrar de cada saida nova que vier a existir.
+print("CONTROLE 6 — a conexao e fechada em todos os caminhos de saida")
+
+
+@contextlib.contextmanager
+def espiar_banco():
+    """Guarda as conexoes que o comando abriu, para dar para perguntar depois
+    se foram fechadas."""
+    criadas = []
+    original = ct.abrir_banco
+    def espiao():
+        cx = original()
+        criadas.append(cx)
+        return cx
+    ct.abrir_banco = espiao
+    try:
+        yield criadas
+    finally:
+        ct.abrir_banco = original
+
+
+def esta_fechada(cx):
+    """Pergunta a propria conexao, em vez de confiar num contador de chamadas
+    de close(): conexao fechada acusa sqlite3.ProgrammingError."""
+    try:
+        cx.execute("SELECT 1")
+        return False
+    except sqlite3.ProgrammingError:
+        return True
+
+
+caminhos = [
+    ("varredura inteira sem falha", {},                              False),
+    ("com um alvo falho",           {"AL": TimeoutError("timed out")}, False),
+    ("defeito de codigo subindo",   {"AL": KeyError("cargo")},       True),
+]
+for rotulo, roteiro, espera_estouro in caminhos:
+    with ambiente_isolado():
+        with espiar_banco() as conexoes, varredura(["AC", "AL", "AM"], roteiro):
+            estourou = None
+            try:
+                rodar_pais()
+            except BaseException as e:    # noqa: BLE001
+                estourou = e
+        abriu = len(conexoes) == 1
+        checa(f"{rotulo}: abriu exatamente uma conexao", abriu,
+              f"conexoes={len(conexoes)}")
+        if espera_estouro:
+            checa(f"{rotulo}: o defeito subiu (nao foi engolido)",
+                  estourou is not None,
+                  f"estourou={type(estourou).__name__ if estourou else None}")
+        if abriu:
+            checa(f"{rotulo}: a conexao foi fechada", esta_fechada(conexoes[0]),
+                  "fechada" if esta_fechada(conexoes[0]) else "SEGUE ABERTA")
+
+
 print()
 if falhas:
     print(f"REPROVADO: {len(falhas)} controle(s) — {falhas}")
