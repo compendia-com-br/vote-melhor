@@ -494,7 +494,7 @@ def cmd_idade(_pausa=None, _forcar=None):
     try:
         dias, quando = idade_da_base(cx)
         if dias is None:
-            print("Base ainda nao coletada. Rode:  coletar_tse.py --listar <UF>")
+            print(AVISO_SEM_BASE)
             return 2
         print(f"Base coletada em {quando}")
         print(f"Idade: {dias} dia(s)  |  limite: {IDADE_MAXIMA_DIAS} dia(s)")
@@ -543,6 +543,23 @@ def apelido_listar(uf, cargo):
 
 def apelido_detalhe(uf, ident):
     return f"detalhe_{ANO}_{uf}_{ident}"
+
+# A resposta unica para "voce ainda nao coletou nada". Existia so dentro de
+# cmd_idade; virou constante quando --reparar-datas, --frescor e --plano
+# passaram a precisar dizer a mesma coisa. Mensagem repetida em quatro
+# lugares deriva — e esta e' a primeira frase que um recem-instalado le.
+AVISO_SEM_BASE = "Base ainda nao coletada. Rode:  coletar_tse.py --listar <UF>"
+
+
+def base_nao_coletada(cx):
+    """True quando a base nunca recebeu uma coleta.
+
+    O sinal e' a AUSENCIA da tabela candidatura, nao a contagem de linhas
+    dela: abrir_banco() cria `coleta` sempre, mas `candidatura` so nasce na
+    primeira gravacao. Tabela ausente e' "nunca coletou" — que e' outra
+    coisa de "coletou e veio vazio", caso que ja tem dono em alvo_mudo()."""
+    return not tabela_existe(cx, "candidatura")
+
 
 def tabela_existe(cx, nome):
     return cx.execute(
@@ -641,8 +658,20 @@ def reparar_datas(banco, aplicar):
     reconferencia · 2 sem --aplicar havendo o que corrigir, ou sobrou algo
     sem arquivo de cache (nao reparavel) apos aplicar.
     """
+    # Duas guardas, porque sao dois estados diferentes de "nunca coletou":
+    # sem o ARQUIVO, sqlite3.connect estoura com "unable to open database
+    # file" (ele nao cria o diretorio pai, ao contrario de abrir_banco); com
+    # o arquivo mas sem a tabela, quem estoura e' o primeiro SELECT de
+    # escanear_datas. Codigo 2, e nao 0: 0 aqui significaria "olhei e nao
+    # havia nada errado", quando o que houve foi nao ter olhado.
+    if not os.path.exists(banco):
+        print(AVISO_SEM_BASE)
+        return 2
     cx = sqlite3.connect(banco)
     try:
+        if base_nao_coletada(cx):
+            print(AVISO_SEM_BASE)
+            return 2
         grupos, log, sem_arquivo = escanear_datas(cx)
 
         if not grupos and not log:
@@ -731,7 +760,13 @@ def cmd_frescor(ident, uf, pausa, forcar=True):
         # recem-criada nao existe tabela candidatura, o primeiro levanta
         # OperationalError e a conexao ficava aberta — que e' exatamente o
         # que acontece com quem roda --frescor antes da primeira coleta.
-        base = cx.execute(
+        # Sem base o comando nao morre: ele existe para mostrar a situacao
+        # DA HORA, e isso independe do que esta gravado. Cai no mesmo ramo
+        # de `base is None` que ja existia, com mensagem propria — "a base
+        # nunca foi coletada" e "este id nao esta na base" sao fatos
+        # diferentes, e quem le precisa saber qual dos dois aconteceu.
+        sem_base = base_nao_coletada(cx)
+        base = None if sem_base else cx.execute(
             "SELECT nomeUrna, descricaoSituacao, cargo_nome, partido_sigla FROM candidatura "
             "WHERE id = ?", (str(ident),)).fetchone()
         cx.row_factory = None
@@ -762,7 +797,11 @@ def cmd_frescor(ident, uf, pausa, forcar=True):
         print("=" * L)
         print(f"{nome}  ({dados.get('cargo',{}).get('nome','sem dado')})")
         print()
-        if base is None:
+        if sem_base:
+            print("  A base local ainda nao foi coletada — nao ha com o que comparar.")
+            print(f"  Rode:  coletar_tse.py --listar {uf}")
+            print(f"  agora  ({quando_ag[:19]}): {ag}")
+        elif base is None:
             print("  Este id nao esta na base local. Mostro so a consulta da hora.")
             print(f"  agora  ({quando_ag[:19]}): {ag}")
         else:
@@ -832,6 +871,20 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
     """--plano <UF> baixa o pacote; --plano <id> extrai o PDF de um candidato."""
     import zipfile
     uf_pacote = (uf if len(str(alvo)) > 3 else str(alvo)).upper()
+
+    # A guarda do inventario vem ANTES do download: a saida inteira de
+    # --plano <UF> e' o cruzamento do pacote com a tabela candidatura, entao
+    # baixar para depois nao ter o que cruzar gasta uma requisicao ao CDN do
+    # TSE a toa. --plano <id> nao entra aqui de proposito: extrair o PDF nao
+    # depende da tabela (ver o fim desta funcao).
+    if len(str(alvo)) <= 3:
+        cx_guarda = abrir_banco()
+        try:
+            if base_nao_coletada(cx_guarda):
+                print(AVISO_SEM_BASE)
+                return 2
+        finally:
+            cx_guarda.close()
     zipe = os.path.join(DIR_BRUTO, f"proposta_governo_{ANO}_{uf_pacote}.zip")
 
     if not os.path.exists(zipe) or forcar:
@@ -903,13 +956,21 @@ def cmd_plano(alvo, uf, pausa, forcar=False):
         saidas.append(alvo_pdf)
     cx = abrir_banco(); cx.row_factory = sqlite3.Row
     try:
-        r = cx.execute("SELECT nomeUrna, numero, cargo_nome FROM candidatura WHERE id = ?",
-                       (ident,)).fetchone()
+        # A tabela aqui so serve para trocar o id pelo nome. Sem ela o PDF
+        # continua saindo — recusar seria apagar a entrega por causa do
+        # enfeite.
+        sem_base = base_nao_coletada(cx)
+        r = None if sem_base else cx.execute(
+            "SELECT nomeUrna, numero, cargo_nome FROM candidatura WHERE id = ?",
+            (ident,)).fetchone()
     finally:
         cx.close()
     print()
     print(f"Plano de governo — {r['nomeUrna'] if r else ident}")
-    if r: print(f"  cargo: {r['cargo_nome']}  |  numero na urna: {r['numero']}")
+    if r:
+        print(f"  cargo: {r['cargo_nome']}  |  numero na urna: {r['numero']}")
+    elif sem_base:
+        print("  (nome e cargo nao aparecem: a base ainda nao foi coletada)")
     for x in saidas:
         tam = os.path.getsize(x)
         print(f"  arquivo: {x}")

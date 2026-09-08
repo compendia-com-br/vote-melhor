@@ -12,11 +12,17 @@ As variacoes, medidas antes de corrigir:
   * cmd_idade    — tres `cx.close(); return` espalhados. Fecha em toda saida
     que existe hoje; quebra na proxima que alguem acrescentar sem lembrar.
   * cmd_frescor  — dois cx.execute() ANTES do try. Numa base recem-criada nao
-    existe tabela candidatura, o SELECT levanta OperationalError e a conexao
-    fica aberta. Nao e' hipotese: e' o que acontece com quem roda --frescor
-    antes da primeira coleta.
+    existe tabela candidatura, o SELECT levantava OperationalError e a
+    conexao ficava aberta.
   * cmd_plano    — abre conexao em DOIS ramos (inventario e extracao), cada
     um com o SELECT desprotegido, mesma historia do frescor.
+
+Os cenarios de base recem-criada acima DEIXARAM de estourar depois que os
+comandos ganharam a guarda base_nao_coletada(): --frescor e --plano <id>
+degradam (entregam o que da' para entregar), --plano <UF> recusa com
+AVISO_SEM_BASE. Os controles ficaram, com a expectativa trocada — o que eles
+medem aqui e' a CONEXAO, e essa exigencia nao mudou. Quem guarda o
+"estourou e fechou" e' a secao NEGATIVO, no fim.
 
 DEFEITO 2 — os tres que tocam a rede (detalhe, frescor, plano) capturavam so
 BloqueioTSE. Falha de transporte respondia traceback, como cmd_listar
@@ -245,29 +251,33 @@ caso("caminho feliz", lambda: (criar_candidatura(), registrar_coleta(1)), None,
 caso("falha de transporte", lambda: (criar_candidatura(), registrar_coleta(1)),
      TIMEOUT, lambda: ct.cmd_frescor(ID_CAND, "MG", pausa=0),
      espera_codigo=2, espera_erro_stderr=True)
-# O vazamento especifico do frescor: o SELECT roda ANTES do try, e numa base
-# recem-criada nao ha tabela candidatura. Quem roda --frescor antes da
-# primeira coleta cai exatamente aqui.
-caso("base sem tabela candidatura (SELECT estoura antes do try)", nada, None,
-     lambda: ct.cmd_frescor(ID_CAND, "MG", pausa=0), espera_estouro=True)
+# Base recem-criada: era aqui que o SELECT de fora do try estourava. Hoje o
+# comando degrada — mostra so a consulta da hora, que e' o dado que ele
+# existe para dar — e a conexao continua tendo que fechar.
+caso("base nunca coletada: degrada em vez de estourar", nada, None,
+     lambda: ct.cmd_frescor(ID_CAND, "MG", pausa=0), espera_codigo=0)
 
 # --- cmd_plano ---------------------------------------------------------------
 print("cmd_plano")
 caso("inventario da UF", lambda: (criar_candidatura(), criar_zip_planos()), None,
      lambda: ct.cmd_plano("MG", "MG", pausa=0), espera_codigo=0)
-caso("inventario sem tabela candidatura", lambda: criar_zip_planos(), None,
-     lambda: ct.cmd_plano("MG", "MG", pausa=0), espera_estouro=True)
+caso("inventario sem base: recusa em vez de estourar", lambda: criar_zip_planos(),
+     None, lambda: ct.cmd_plano("MG", "MG", pausa=0), espera_codigo=2)
 caso("extracao do PDF de um candidato",
      lambda: (criar_candidatura(), criar_zip_planos()), None,
      lambda: ct.cmd_plano(ID_CAND, "MG", pausa=0))
-caso("extracao sem tabela candidatura", lambda: criar_zip_planos(), None,
-     lambda: ct.cmd_plano(ID_CAND, "MG", pausa=0), espera_estouro=True)
+caso("extracao sem base: extrai o PDF assim mesmo", lambda: criar_zip_planos(),
+     None, lambda: ct.cmd_plano(ID_CAND, "MG", pausa=0), espera_codigo=0)
 
 # O download do pacote acontece antes de qualquer conexao existir, entao aqui
 # nao ha vazamento a medir — o que se mede e' a outra metade: transporte tem
 # que virar mensagem, nao traceback.
+# A base COLETADA aqui nao e' decoracao: sem ela a guarda base_nao_coletada()
+# recusa antes do download, e este controle mediria o caminho errado —
+# passaria com codigo 2 sem nunca tocar a rede.
 print("cmd_plano — download do pacote")
 with ambiente_isolado():
+    criar_candidatura()
     with rede_falsa(DNS):
         estourou = None
         try:

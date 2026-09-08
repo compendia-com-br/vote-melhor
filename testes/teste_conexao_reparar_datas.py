@@ -6,12 +6,14 @@ e aplicar, outra para a reconferencia depois do commit) e fecha as duas com
 `cx.close()` solto, em quatro pontos diferentes. Fecha em toda saida que os
 autores enumeraram — e so nelas. As que sobram:
 
-  * escanear_datas() estourando na PRIMEIRA conexao. Nao e' hipotetico: o
-    primeiro SELECT dele le a tabela candidatura SEM guarda de tabela_existe
-    (a guarda existe so para a tabela `detalhe`, logo abaixo). Numa base que
-    ainda nao foi coletada a tabela nao existe, o SELECT levanta
-    OperationalError, e a conexao fica aberta. Quem rodar --reparar-datas
-    antes da primeira coleta cai exatamente ai.
+  * escanear_datas() estourando na PRIMEIRA conexao, quando a base nunca
+    foi coletada e a tabela candidatura nao existe. Este caminho DEIXOU de
+    estourar depois que reparar_datas ganhou a guarda base_nao_coletada()
+    — hoje ele recusa com AVISO_SEM_BASE e devolve 2. O controle ficou, com
+    a expectativa trocada: continua sendo o cenario real de quem roda
+    --reparar-datas antes da primeira coleta, e continua exigindo que a
+    conexao feche. Quem guarda o "estourou e fechou" agora sao os dois
+    controles seguintes.
   * o UPDATE estourando no meio do laco de aplicacao.
   * escanear_datas() estourando na SEGUNDA conexao, a da reconferencia — o
     caminho que so roda depois do commit, e por isso o menos exercitado.
@@ -181,13 +183,13 @@ caso("ha o que corrigir, sem --aplicar", base_com_carimbo_errado, aplicar=False,
 caso("ha o que corrigir, com --aplicar", base_com_carimbo_errado, aplicar=True,
      espera_codigo=0)
 
-# --- o vazamento real: base nunca coletada ----------------------------------
-# O primeiro SELECT de escanear_datas le candidatura sem guarda. Numa base
-# recem-criada a tabela nao existe. Isto e' o que acontece com quem roda
-# --reparar-datas antes da primeira coleta.
+# --- base nunca coletada ----------------------------------------------------
+# Era aqui que o primeiro SELECT de escanear_datas estourava e vazava a
+# conexao. Com a guarda base_nao_coletada(), o comando recusa e devolve 2 —
+# e a conexao continua tendo que fechar, que e' o que este arquivo mede.
 print("reparar_datas — base nunca coletada (candidatura nao existe)")
-caso("SELECT estoura na primeira conexao", base_vazia, aplicar=False,
-     espera_estouro=True)
+caso("recusa com aviso, em vez de estourar", base_vazia, aplicar=False,
+     espera_codigo=2)
 
 
 # --- o UPDATE estourando no meio da aplicacao -------------------------------
