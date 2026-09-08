@@ -642,60 +642,69 @@ def reparar_datas(banco, aplicar):
     sem arquivo de cache (nao reparavel) apos aplicar.
     """
     cx = sqlite3.connect(banco)
-    grupos, log, sem_arquivo = escanear_datas(cx)
+    try:
+        grupos, log, sem_arquivo = escanear_datas(cx)
 
-    if not grupos and not log:
-        print("--reparar-datas: nenhum carimbo errado encontrado. Nada para mudar.")
-        cx.close()
+        if not grupos and not log:
+            print("--reparar-datas: nenhum carimbo errado encontrado. Nada para mudar.")
+            if sem_arquivo:
+                # Repetir isso a cada chamada e de proposito: o gap (arquivo
+                # sumido) nao desaparece so porque nao ha mais nada NOVO para
+                # corrigir. "Nada para mudar" nao pode virar "esta tudo certo".
+                print(f"\n{len(sem_arquivo)} grupo(s) continuam SEM arquivo de cache — "
+                      f"nao entram nesta conta porque ja foram avisados antes, mas "
+                      f"continuam com coletado_em errado.")
+                for item in sem_arquivo:
+                    print(f"  {item['tabela']:<11} {item['apelido']:<26} {item['n']:>6} linha(s)")
+                return 2
+            return 0
+
+        total_linhas = sum(g["n"] for g in grupos)
+        print(f"--reparar-datas {'vai corrigir' if aplicar else 'encontrou'} "
+              f"{len(grupos)} grupo(s) de candidatura/detalhe ({total_linhas} linha(s)) "
+              f"e {len(log)} entrada(s) do log de coleta:\n")
+        for g in grupos:
+            print(f"  {g['tabela']:<11} {g['apelido']:<26} {g['n']:>6} linha(s)  "
+                  f"{g['atual']}  ->  {g['correto']}")
+        for item in log:
+            print(f"  coleta      {item['apelido']:<26} {'1':>6} linha(s)  "
+                  f"{item['atual']}  ->  {item['correto']}  (rowid={item['rowid']})")
+
         if sem_arquivo:
-            # Repetir isso a cada chamada e de proposito: o gap (arquivo
-            # sumido) nao desaparece so porque nao ha mais nada NOVO para
-            # corrigir. "Nada para mudar" nao pode virar "esta tudo certo".
-            print(f"\n{len(sem_arquivo)} grupo(s) continuam SEM arquivo de cache — "
-                  f"nao entram nesta conta porque ja foram avisados antes, mas "
-                  f"continuam com coletado_em errado.")
+            print(f"\n{len(sem_arquivo)} grupo(s) SEM arquivo de cache correspondente — "
+                  f"NAO reparados (nunca adivinhados):")
             for item in sem_arquivo:
                 print(f"  {item['tabela']:<11} {item['apelido']:<26} {item['n']:>6} linha(s)")
+
+        if not aplicar:
+            print("\nSem --aplicar: nada foi alterado. Repita com --aplicar para gravar.")
             return 2
-        return 0
 
-    total_linhas = sum(g["n"] for g in grupos)
-    print(f"--reparar-datas {'vai corrigir' if aplicar else 'encontrou'} "
-          f"{len(grupos)} grupo(s) de candidatura/detalhe ({total_linhas} linha(s)) "
-          f"e {len(log)} entrada(s) do log de coleta:\n")
-    for g in grupos:
-        print(f"  {g['tabela']:<11} {g['apelido']:<26} {g['n']:>6} linha(s)  "
-              f"{g['atual']}  ->  {g['correto']}")
-    for item in log:
-        print(f"  coleta      {item['apelido']:<26} {'1':>6} linha(s)  "
-              f"{item['atual']}  ->  {item['correto']}  (rowid={item['rowid']})")
-
-    if sem_arquivo:
-        print(f"\n{len(sem_arquivo)} grupo(s) SEM arquivo de cache correspondente — "
-              f"NAO reparados (nunca adivinhados):")
-        for item in sem_arquivo:
-            print(f"  {item['tabela']:<11} {item['apelido']:<26} {item['n']:>6} linha(s)")
-
-    if not aplicar:
-        print("\nSem --aplicar: nada foi alterado. Repita com --aplicar para gravar.")
+        for g in grupos:
+            cx.execute(f"UPDATE {g['tabela']} SET coletado_em = ? WHERE {g['where_sql']}",
+                       (g["correto"],) + g["where_val"])
+        for item in log:
+            cx.execute("UPDATE coleta SET quando = ? WHERE rowid = ?",
+                       (item["correto"], item["rowid"]))
+        cx.commit()
+    finally:
+        # Os quatro cx.close() soltos cobriam as saidas enumeradas — e so
+        # elas. Ficavam de fora: escanear_datas() estourando (o SELECT de
+        # candidatura nao tem guarda de tabela_existe, entao base nunca
+        # coletada estoura ali) e o UPDATE estourando no meio do laco.
         cx.close()
-        return 2
-
-    for g in grupos:
-        cx.execute(f"UPDATE {g['tabela']} SET coletado_em = ? WHERE {g['where_sql']}",
-                   (g["correto"],) + g["where_val"])
-    for item in log:
-        cx.execute("UPDATE coleta SET quando = ? WHERE rowid = ?",
-                   (item["correto"], item["rowid"]))
-    cx.commit()
-    cx.close()
 
     print(f"\n{total_linhas} linha(s) de candidatura/detalhe corrigida(s), "
           f"{len(log)} entrada(s) de coleta corrigida(s).")
     print("Conferindo de novo...")
     cx = sqlite3.connect(banco)
-    grupos2, log2, _sem2 = escanear_datas(cx)
-    cx.close()
+    try:
+        # A reconferencia so roda depois do commit, entao e' o caminho menos
+        # exercitado da funcao — e era o unico com uma conexao que nenhuma
+        # saida de erro fechava.
+        grupos2, log2, _sem2 = escanear_datas(cx)
+    finally:
+        cx.close()
     if grupos2 or log2:
         print(f"AINDA HA {len(grupos2)} grupo(s) e {len(log2)} entrada(s) de log "
               f"errados apos o reparo — nao ficou correto.")
