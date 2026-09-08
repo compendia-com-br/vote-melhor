@@ -1516,7 +1516,7 @@ git commit -F /tmp/m.txt
 
 **Arquivos:** nenhum novo. Esta tarefa mede.
 
-- [ ] **Passo 1: rodar tudo o que mede**
+- [x] ✅ **Passo 1: rodar tudo o que mede** — FEITO em 08/09/2026. `testar_plugin.py` → `0 falha(s), 0 aviso(s)`, saída 0. `teste_verificar_dados.py` → 0. `teste_pais.py` → 0. `verificar_dados.py` na base real → `documento: 0`.
 
 ```bash
 cd ~/claude/projetos/vote-melhor
@@ -1529,7 +1529,7 @@ python3 plugins/vote-melhor/ferramentas/verificar_dados.py; echo "documento: $?"
 Esperado: `0 falha(s), 0 aviso(s)`; os dois testes com todos os controles em `[ok ]`;
 `documento: 0`.
 
-- [ ] **Passo 2: partida do zero, como um estranho faria**
+- [x] ✅ **Passo 2: partida do zero, como um estranho faria** — FEITO em 08/09/2026, e mais forte do que o passo pedia: **clone anônimo do repositório público**, sem credencial (helper desligado), com `VOTE_MELHOR_DADOS` em pasta vazia, contra o TSE de verdade. `--listar MG` → 1.779 candidatos em 6 requisições; `consultar --uf MG --cargo Governador` → 11 linhas; `--ficha <id>` → ficha emitida. **ACHOU UM PASSO FALTANDO**, que é o que este passo existe para achar: o README mandava três passos e a ficha saía com 11 dos 22 campos como `sem dado (detalhe não coletado)` — faltava `coletar_tse.py --detalhe <id> --uf <UF>`, palavra que não aparecia no README fora de um parágrafo sobre privacidade. Corrigido na tarefa 9 (commit `4b535d9`), e reverificado extraindo os comandos do próprio texto do README novo e executando-os em clone novo com dados zerados: **0 campos vazios**.
 
 ```bash
 D=$(mktemp -d) && git clone -q . "$D/vm" && cd "$D/vm"
@@ -1542,7 +1542,16 @@ Esperado: coleta e ficha funcionando **seguindo só o que o README manda**, sem 
 passo que só quem construiu saberia dar. Anote qualquer passo que faltou e volte à
 tarefa 9 — é exatamente o que um estranho vai encontrar.
 
-- [ ] **Passo 3: conferir os oito critérios de aceitação da especificação**
+- [x] ✅ **Passo 3: conferir os oito critérios de aceitação** — FEITO em 08/09/2026, um a um, cada um com a saída que o prova:
+  1. `testar_plugin.py` → `0 falha(s), 0 aviso(s)`.
+  2. `verificar_dados.py` → 0 na base real; **2** na cópia com CPF sintético válido (o que `montar_cpf_sintetico("123456789")` devolve — **os dígitos não se escrevem aqui**, ver abaixo) injetado num `nomeUrna`.
+     > **Por que a base do controle vai escrita e o CPF não.** O número é gerado em tempo de execução justamente para **não existir escrito em lugar nenhum**: ele é o controle positivo do `--autoteste` de `varrer_historico.py`, e a lista `EXEMPLOS_SINTETICOS` daquele script **não o perdoa de propósito** — há um controle que reprova o autoteste se alguém tentar incluí-lo. Colar os dígitos num arquivo faz a varredura do histórico achar um documento e sair **2**, que foi o que aconteceu no commit `8abab02` e obrigou a refazê-lo. Um controle perdoado pela exclusão que ele deveria vigiar não vigia nada.
+  3. Base real: **28** alvos, **27** UFs além de BR, **13** candidatos a presidente sob BR, **431** de cargo 8 (distrital) no DF, 20.005 candidaturas.
+  4. `senado.py --cobertura` → 3 senadores de MG em exercício, dado real da API do Senado, saída 0.
+  5. `teste_exportar_gpt.py` → 0 (nenhuma coluna fora da lista); `gpt/conhecimento/FONTE.md` traz data (`2026-09-07`), URL do TSE, licença e a contagem (`Total de candidaturas: 20005`).
+  6. `INSTRUCOES.md` = **7.988** caracteres, 12 de folga, seis guardas presentes. **Cuidado ao reconferir:** `wc -m` devolve 8318 aqui porque a shell não tem locale e o `wc` do BSD cai para bytes — use `LC_ALL=en_US.UTF-8 wc -m` ou `len()` em Python. Virou teste automatizado em `testes/teste_pacote_gpt.py` (commit `93d2a8f`), que antes não existia: o limite só era conferido por este documento.
+  7. `testes/RED-gpt-2026-09-07.md` traz **seis** cenários (a especificação pede cinco), cada um com `Sem guarda (base-N)`, `Com guarda (com-N)` e veredito.
+  8. Provado no Passo 2 acima.
 
 Percorrer a §10 da especificação item por item e marcar cada um com a saída que o prova.
 Item sem prova não está pronto, mesmo que pareça.
