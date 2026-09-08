@@ -12,10 +12,10 @@ Vote Melhor
 ## Descrição (campo "Description")
 
 O "melhor" é sobre a sua decisão, não sobre o candidato. Esta descrição não pode dizer o
-contrário — ver `AVISO-LEGAL.md` e `plugins/vote-melhor/README.md` na raiz do repositório
-para o porquê: a ferramenta não classifica, não pontua, não ordena por mérito e não
-recomenda voto, e uma vitrine que prometesse isso venderia propaganda eleitoral, não uma
-ferramenta cívica.
+contrário — ver `AVISO-LEGAL.md`, na raiz do repositório, e `plugins/vote-melhor/README.md`,
+dentro de `plugins/vote-melhor/`, para o porquê: a ferramenta não classifica, não pontua,
+não ordena por mérito e não recomenda voto, e uma vitrine que prometesse isso venderia
+propaganda eleitoral, não uma ferramenta cívica.
 
 ```
 Ficha de candidatura da eleição de 2026 direto do cadastro oficial do TSE — registro
@@ -24,8 +24,9 @@ decisão, não sobre o candidato: não classifica, não pontua, não ordena por 
 recomenda voto. Uma coleção Compendia.
 ```
 
-(220 caracteres — cabe no limite de 300 do campo "Description" do GPT Builder, com
-sobra.)
+(298 caracteres, medidos com `len()` — cabe no limite de 300 do campo "Description" do
+GPT Builder, com **2 caracteres** de folga. Não há espaço para acrescentar CTA nem frase
+extra sem cortar algo antes.)
 
 ## Iniciadores de conversa (4)
 
