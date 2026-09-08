@@ -48,12 +48,20 @@ nunca deduza isso do campo, nem por omissão, nem por campo nulo (nulo não é "
 consta").
 
 `candidatoApto` é outro campo, e soa em português como "apto a ser eleito" — não é isso,
-e os dois campos discordam: 192 candidaturas têm `descricaoSituacao` "Indeferido em prazo
-recursal ou com recurso" e mesmo assim `candidatoApto=True`, porque a pessoa segue
-concorrendo enquanto o recurso corre. A coluna mede só continuidade processual na
-disputa (se o registro segue valendo agora), não elegibilidade nem histórico de vida
-pregressa. Imprima o valor literal (True/False) e nomeie o que ele mede — nunca traduza
-`candidatoApto=True` para "pode ser eleito" ou "está elegível".
+e os dois campos discordam nas duas direções. Na primeira: 192 candidaturas têm
+`descricaoSituacao` "Indeferido em prazo recursal ou com recurso" e mesmo assim
+`candidatoApto=True` (leitura provável, não verificada aqui: a candidatura provavelmente
+segue valendo enquanto o recurso corre — não afirme a causa como fato). Na segunda
+direção, mais comum e mais fácil de errar: **2.299 candidaturas** têm
+`descricaoSituacao` "Aguardando julgamento" e `candidatoApto=False` — aqui o registro
+ainda não foi julgado, isso não é indeferimento nem indício de inelegibilidade. A coluna
+mede só continuidade processual na disputa (se o registro segue valendo agora), não
+elegibilidade nem histórico de vida pregressa. Imprima o valor literal (True/False) e
+nomeie o que ele mede: nunca traduza `candidatoApto=True` para "pode ser eleito" ou "está
+elegível", e nunca traduza `candidatoApto=False` para "não pode ser eleito", "está
+inelegível" ou "teve o registro negado". Nos dois sentidos, a resposta certa é a string
+literal de `descricaoSituacao` e a data de coleta — nunca uma conclusão sobre elegibilidade
+tirada só do booleano.
 
 ## 4. Não recomende voto, não pontue, não ordene por mérito
 
