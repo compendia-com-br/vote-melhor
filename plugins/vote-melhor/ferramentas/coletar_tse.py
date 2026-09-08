@@ -4,8 +4,9 @@
 # O QUE FAZ: baixa a lista de candidatos de um estado (todos os cargos) e, sob pedido,
 # a ficha detalhada de UM candidato. Guarda o JSON como veio em dados/bruto/ e monta
 # um banco SQLite em dados/tse.sqlite. Cada linha guarda de onde veio e quando.
-# COMO RODAR:  python3 ferramentas/coletar_tse.py --listar MG
-#              python3 ferramentas/coletar_tse.py --detalhe 123456789
+# COMO RODAR (da raiz de um clone; instalado, use ${CLAUDE_PLUGIN_ROOT}/ferramentas/):
+#   python3 plugins/vote-melhor/ferramentas/coletar_tse.py --listar MG
+#   python3 plugins/vote-melhor/ferramentas/coletar_tse.py --detalhe 123456789
 # CUIDADO: servidor público. Há pausa obrigatória entre requisições e cache em disco.
 
 import argparse, gzip, http.client, json, os, re, ssl, sqlite3, sys, time, zlib
@@ -19,6 +20,15 @@ sys.dont_write_bytecode = True
 # CPF e de titulo de eleitor, para a mascara de valor nao reescrever a conta
 # (ver comentario acima de PROIBIDOS, mais abaixo).
 import verificar_dados as vd
+
+# Diretorio REAL deste arquivo. As mensagens de recuperacao montam o comando a
+# partir daqui, e nao de um caminho escrito a mao: "ferramentas/x.py" nao
+# existe a partir da raiz de um clone (os scripts moram em
+# plugins/vote-melhor/ferramentas/) nem a partir de um plugin instalado. Uma
+# mensagem de recuperacao que manda rodar um caminho inexistente deixa quem
+# tropecou sem saida — o erro seguinte e igualzinho ao primeiro.
+_AQUI = os.path.dirname(os.path.abspath(__file__))
+_IRMAO = lambda nome: os.path.join(_AQUI, nome)
 
 # ---------------------------------------------------------------------------
 # CABECALHOS — não mexa sem medir. Medido em 02/09/2026 contra o TSE (Akamai):
@@ -354,7 +364,7 @@ def cmd_pais(pausa, forcar):
     if falharam:
         print(f"\n{len(falharam)} alvo(s) falharam. Repita só eles:")
         for uf, _ in falharam:
-            print(f"  python3 coletar_tse.py --listar {uf}")
+            print(f"  python3 {_IRMAO('coletar_tse.py')} --listar {uf}")
     cx.close()
     return 2 if (falharam or mudos) else 0
 

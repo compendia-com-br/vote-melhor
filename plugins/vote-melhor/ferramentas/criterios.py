@@ -18,6 +18,15 @@ sobre aquele candidato naquele eixo, com a fonte. Quem julga é quem lê.
 """
 import argparse, json, os, re, sqlite3, sys, time, unicodedata, urllib.parse, urllib.request
 
+# Diretorio REAL deste arquivo. As mensagens de recuperacao montam o comando a
+# partir daqui, e nao de um caminho escrito a mao: "ferramentas/x.py" nao
+# existe a partir da raiz de um clone (os scripts moram em
+# plugins/vote-melhor/ferramentas/) nem a partir de um plugin instalado. Uma
+# mensagem de recuperacao que manda rodar um caminho inexistente deixa quem
+# tropecou sem saida — o erro seguinte e igualzinho ao primeiro.
+_AQUI = os.path.dirname(os.path.abspath(__file__))
+_IRMAO = lambda nome: os.path.join(_AQUI, nome)
+
 RAIZ = os.environ.get("VOTE_MELHOR_DADOS") or os.path.join(
     os.path.expanduser("~"), ".local", "share", "vote-melhor")
 BANCO = os.path.join(RAIZ, "dados", "tse.sqlite")
@@ -48,7 +57,8 @@ AVISO_PROPOSTA = (
 def abrir():
     if not os.path.exists(BANCO):
         print(f"Banco não encontrado em {BANCO}.\n"
-              f"Rode antes:  python3 ferramentas/coletar_tse.py --listar <UF>", file=sys.stderr)
+              f"Rode antes:  python3 {_IRMAO('coletar_tse.py')} --listar <UF>",
+              file=sys.stderr)
         sys.exit(2)
     cx = sqlite3.connect(BANCO)
     cx.create_function("limpar", 1, limpar)
@@ -79,7 +89,8 @@ def cmd_declarar(textos):
 def ler_eixos():
     if not os.path.exists(EIXOS):
         print("Nenhum eixo declarado ainda. Rode antes:\n"
-              '  python3 ferramentas/criterios.py --declarar "tema 1" "tema 2"', file=sys.stderr)
+              f'  python3 {_IRMAO("criterios.py")} --declarar "tema 1" "tema 2"',
+              file=sys.stderr)
         sys.exit(2)
     with open(EIXOS, encoding="utf-8") as f:
         return json.load(f)["eixos"]

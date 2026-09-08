@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Prova, por VALOR, que a base nao guarda CPF nem titulo de eleitor.
 
-COMO RODAR:  python3 verificar_dados.py
-             python3 verificar_dados.py --banco /caminho/outro.sqlite
-             python3 verificar_dados.py --limpar
+COMO RODAR (da raiz de um clone; instalado, use ${CLAUDE_PLUGIN_ROOT}/ferramentas/):
+  python3 plugins/vote-melhor/ferramentas/verificar_dados.py
+  python3 plugins/vote-melhor/ferramentas/verificar_dados.py --banco /outro.sqlite
+  python3 plugins/vote-melhor/ferramentas/verificar_dados.py --limpar
 
 O coletor descarta esses dois campos na ingestao, mas o filtro dele casa o
 NOME da chave do JSON. Se o TSE renomear o campo, mudar de posicao, ou
@@ -16,6 +17,15 @@ E explicito: sem essa flag o script so relata. Nao mexe em dados/bruto/.
 Codigos: 0 limpo · 2 achou documento · 1 erro de uso.
 """
 import argparse, os, re, sqlite3, sys
+
+# Diretorio REAL deste arquivo. As mensagens de recuperacao montam o comando a
+# partir daqui, e nao de um caminho escrito a mao: "ferramentas/x.py" nao
+# existe a partir da raiz de um clone (os scripts moram em
+# plugins/vote-melhor/ferramentas/) nem a partir de um plugin instalado. Uma
+# mensagem de recuperacao que manda rodar um caminho inexistente deixa quem
+# tropecou sem saida — o erro seguinte e igualzinho ao primeiro.
+_AQUI = os.path.dirname(os.path.abspath(__file__))
+_IRMAO = lambda nome: os.path.join(_AQUI, nome)
 
 RAIZ = os.environ.get("VOTE_MELHOR_DADOS") or os.path.join(
     os.path.expanduser("~"), ".local", "share", "vote-melhor")
@@ -232,7 +242,8 @@ def main():
     a = ap.parse_args()
     if not os.path.exists(a.banco):
         print(f"Banco nao encontrado: {a.banco}\n"
-              f"Rode antes:  python3 coletar_tse.py --listar <UF>", file=sys.stderr)
+              f"Rode antes:  python3 {_IRMAO('coletar_tse.py')} --listar <UF>",
+              file=sys.stderr)
         return 1
     if a.limpar:
         return limpar(a.banco)

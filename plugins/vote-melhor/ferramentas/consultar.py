@@ -2,13 +2,23 @@
 # consultar.py — lê o banco montado pelo coletar_tse.py. Não acessa a rede, nunca.
 #
 # O QUE FAZ: procura candidatos no banco local e imprime a ficha em FORMATO FIXO.
-# COMO RODAR:  python3 ferramentas/consultar.py --uf MG --cargo "DEPUTADO FEDERAL"
-#              python3 ferramentas/consultar.py --nome "trecho do nome"
-#              python3 ferramentas/consultar.py --ficha 130002539775
+# COMO RODAR (da raiz de um clone; instalado, use ${CLAUDE_PLUGIN_ROOT}/ferramentas/):
+#   python3 plugins/vote-melhor/ferramentas/consultar.py --uf MG --cargo "DEPUTADO FEDERAL"
+#   python3 plugins/vote-melhor/ferramentas/consultar.py --nome "trecho do nome"
+#   python3 plugins/vote-melhor/ferramentas/consultar.py --ficha 130002539775
 # A ficha sai sempre com os mesmos campos, na mesma ordem, com "sem dado" onde faltar.
 # Esse formato fixo é o contrato: o dossiê se apoia nele e não pode mudar de forma.
 
 import argparse, os, sqlite3, sys, unicodedata
+
+# Diretorio REAL deste arquivo. As mensagens de recuperacao montam o comando a
+# partir daqui, e nao de um caminho escrito a mao: "ferramentas/x.py" nao
+# existe a partir da raiz de um clone (os scripts moram em
+# plugins/vote-melhor/ferramentas/) nem a partir de um plugin instalado. Uma
+# mensagem de recuperacao que manda rodar um caminho inexistente deixa quem
+# tropecou sem saida — o erro seguinte e igualzinho ao primeiro.
+_AQUI = os.path.dirname(os.path.abspath(__file__))
+_IRMAO = lambda nome: os.path.join(_AQUI, nome)
 
 # O dado NUNCA mora dentro do plugin. Plugin instalado é pacote somente-leitura,
 # e escrever ali suja o pacote de quem comprou — além de o cache de plugin ser
@@ -46,7 +56,8 @@ def limpar(texto):
 def abrir():
     if not os.path.exists(BANCO):
         print(f"Banco não encontrado em {BANCO}.\n"
-              f"Rode antes:  python3 ferramentas/coletar_tse.py --listar MG", file=sys.stderr)
+              f"Rode antes:  python3 {_IRMAO('coletar_tse.py')} --listar MG",
+              file=sys.stderr)
         sys.exit(1)
     cx = sqlite3.connect(BANCO)
     cx.row_factory = sqlite3.Row
