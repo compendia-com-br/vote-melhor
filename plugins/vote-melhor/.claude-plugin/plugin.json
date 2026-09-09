@@ -1,6 +1,6 @@
 {
   "name": "vote-melhor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Vote Melhor — monta a ficha de candidatura de eleição brasileira a partir do dado oficial do TSE, em formato fixo, separando registro oficial de alegação de campanha. Inclui registro de mandato federal pelas APIs da Câmara e do Senado, frescor da situação do registro e cruzamento com os eixos que o eleitor declara. Coleta local por biblioteca padrão do Python, sem dado embarcado e sem chave de API. O \"melhor\" é sobre a sua decisão, não sobre o candidato: a ferramenta não classifica, não deriva elegibilidade, não ordena por mérito e não recomenda voto.",
   "author": {
     "name": "Compendia",

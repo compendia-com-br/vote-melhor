@@ -29,14 +29,28 @@ DOC = [
 COMPARA = re.compile(
     # "o mais X dos tres", "a menos Y dos candidatos"
     r"\b(?:o|a)\s+(?:mais|menos)\s+\w+\s+d(?:os|as|e)\s+(?:tres|quatro|cinco|todos|candidatos)"
-    # "e o mais forte", "sao os mais preparados" — qualquer superlativo com artigo
-    r"|\b(?:e|eh|sao|fica|ficou|parece)\s+(?:o|a|os|as)\s+(?:mais|menos)\s+\w+"
-    # substantivo + "mais X" perto de candidato/curriculo/proposta
-    r"|\b(?:curriculo|proposta|historico|ficha|trajetoria)\b[^.]{0,40}\b(?:mais|menos)\s+\w+"
+    # atributo de candidato + comparativo: "curriculo mais forte dos tres" e o achado
+    # real da linha de base. "ficha" NAO entra: neste projeto ela e o nome da saida,
+    # e "uma ficha que omite o que o eleitor mais quer" nao compara ninguem.
+    r"|\b(?:curriculo|proposta|historico|trajetoria)\s+(?:\w+\s+){0,2}(?:mais|menos)\s+\w+"
     r"|\b(?:melhor|pior)\s+(?:candidat|opcao|escolha|nome)"
     r"|\bmais\s+(?:preparad|qualificad|confiavel|honest|competent|experient)"
     r"|\b(?:maior|menor)\s+(?:variancia|risco|chance|aposta)\s+d(?:os|as|e)\s+(?:tres|quatro|candidatos)",
     re.IGNORECASE)
+
+# Superlativo solto — "e o mais X", "a ficha ... mais Y". Sozinho ele nao acusa nada:
+# "o erro mais comum e o mais caro" e "E o mais importante:" sao prosa, e a guarda barrava
+# a propria skill fato-e-alegacao por causa deles. Medido em 09/09/2026: 3 falsos positivos
+# em 1 arquivo. Por isso ele so vale quando ha candidato por perto (CONTEXTO abaixo).
+COMPARA_FRACO = re.compile(
+    r"\b(?:e|eh|sao|fica|ficou|parece)\s+(?:o|a|os|as)\s+(?:mais|menos)\s+\w+",
+    re.IGNORECASE)
+
+# O que faz um superlativo virar comparacao ELEITORAL. Sem nenhum destes na mesma vizinhanca,
+# "o mais caro" fala de outra coisa.
+CONTEXTO = re.compile(
+    r"\b(candidat|governador|senador|deputad|presidente|prefeit|vereador|chapa|urna|"
+    r"partido|coligacao|chapa)", re.IGNORECASE)  # nao entra "eleitor": e prosa deste projeto
 
 # --- 3. nota, score, ranking ---------------------------------------------------
 NOTA = re.compile(
@@ -81,14 +95,63 @@ def sem_acento(t):
                    if unicodedata.category(c) != "Mn")
 
 
+# CITAR nao e AFIRMAR. Um documento que ensina a regra precisa escrever a construcao que
+# proibe, e a guarda casava os dois do mesmo jeito — a ponto de BARRAR a edicao dela mesma,
+# das instrucoes do GPT, da skill fato-e-alegacao e do registro RED. Medido em 09/09/2026.
+#
+# O discriminador e a MARCACAO, nao o verbo que introduz. Tentei uma lista de marcas de
+# atribuicao ("segundo", "afirma", "nunca escreva") e ela furou em tres casos reais do
+# proprio projeto: "Nunca de ... superlativo (", "Assim nao:", "- Escrever". Lista de
+# palavras da confianca falsa; a marcacao e estrutural.
+#
+# O PRECO, dito de propria boca: `Fulano "e ficha limpa"` passa. E hole conhecido. A guarda
+# existe contra DERIVA da saida, nao contra adversario — e deriva nao poe o proprio veredito
+# entre aspas. Quem quiser fechar isso precisa de analise de sujeito, nao de mais uma lista.
+def mascarar_mencao(texto):
+    """Apaga as regioes onde a construcao proibida esta CITADA, nao afirmada.
+
+    Troca por espaco do mesmo tamanho, para nao deslocar posicao nenhuma.
+    """
+    def branco(m):
+        return " " * len(m.group(0))
+
+    # aspas TRIPLAS primeiro: uma docstring tem numero impar de aspas e desalinha o
+    # pareamento de todas as aspas simples depois dela. Medido: sem isto, a guarda
+    # ainda acusava 6 construcoes no proprio codigo-fonte dela.
+    texto = re.sub(r'""".*?"""', branco, texto, flags=re.S)
+    texto = re.sub(r"'''.*?'''", branco, texto, flags=re.S)
+    texto = re.sub(r"```.*?```", branco, texto, flags=re.S)   # bloco de codigo
+    texto = re.sub(r"`[^`\n]+`", branco, texto)               # codigo de linha
+    texto = re.sub(r"«[^»]{0,300}»", branco, texto, flags=re.S)
+    texto = re.sub(r"[“][^”]{0,300}[”]", branco, texto, flags=re.S)
+    texto = re.sub(r'"[^"]{0,300}"', branco, texto, flags=re.S)
+    # bloco de citacao do markdown: "> ..." e a pergunta de quem lê, reproduzida.
+    # Sem isto a guarda acusava a PERGUNTA DO ELEITOR como se fosse saida da ferramenta.
+    texto = re.sub(r"^[ \t]*>.*$", branco, texto, flags=re.M)
+    return texto
+
+
 def achar(texto):
-    texto = sem_acento(texto or "")
+    cru = sem_acento(texto or "")
+    # DOCUMENTO nao aceita a defesa de `eu estava citando`: citar `e ficha limpa` e
+    # legitimo, imprimir um CPF nao e — entre aspas ou fora delas. Por isso a regra 1 corre
+    # no texto CRU. Medido: sem esta separacao, o mascaramento comia {"cpf":"..."} inteiro
+    # e cegava o detector de documento, que e a regra mais consequente das quatro.
+    texto = mascarar_mencao(cru)
     saida = []
     for regras, rotulo in REGRAS:
+        fonte = cru if rotulo == "documento de identificacao de terceiro" else texto
         pares = regras if isinstance(regras, list) else [(regras, rotulo)]
         for rx, detalhe in pares:
-            for m in rx.finditer(texto or ""):
+            for m in rx.finditer(fonte):
                 saida.append((rotulo, detalhe, m.group(0)[:70]))
+    # superlativo solto: so acusa se houver candidato na mesma vizinhanca
+    for m in COMPARA_FRACO.finditer(texto):
+        ini = max(0, m.start() - 200)
+        fim = min(len(texto), m.end() + 200)
+        if CONTEXTO.search(texto[ini:fim]):
+            saida.append(("comparativo entre candidatos",
+                          "comparativo entre candidatos", m.group(0)[:70]))
     return saida
 
 def main():
