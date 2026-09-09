@@ -1,5 +1,23 @@
 # Vote Melhor — distribuição pública gratuita: plano de implementação
 
+> **⚠️ AS CAIXAS DESTE PLANO NÃO ACOMPANHARAM A EXECUÇÃO — leia isto antes de
+> começar a trabalhar por elas.** Em 08/09/2026, 60 caixas estavam abertas e 5
+> fechadas, mas **o trabalho está entregue**: o repositório é público sob
+> Apache-2.0, o plugin está na versão 1.0.0, a base tem 20.005 candidaturas de
+> 28 alvos, o pacote do GPT está escrito e os oito critérios de aceitação da
+> §10 foram conferidos um a um (Tarefa 10, Passo 3). Quem seguir as caixas vai
+> refazer trabalho pronto.
+>
+> **O que foi medido, e o que não foi.** Foi conferido o RESULTADO de cada
+> tarefa — o artefato existe, roda e passa nos portões. NÃO foi conferido que
+> cada passo intermediário aconteceu como escrito (ninguém pode provar hoje
+> que alguém viu um teste falhar em 07/09), e por isso as caixas ficaram como
+> estão em vez de serem marcadas em bloco: marcar sem prova seria trocar um
+> documento que mente para baixo por um que mente para cima. As únicas caixas
+> marcadas são as que têm a saída que as prova escrita ao lado.
+>
+> **Onde está a prova:** Tarefa 10, Passos 1 a 3, no fim deste arquivo.
+>
 > **Para quem executa com agente:** SUB-SKILL OBRIGATÓRIA — use
 > `superpowers:subagent-driven-development` (recomendado) ou
 > `superpowers:executing-plans` para executar tarefa a tarefa. Os passos usam
