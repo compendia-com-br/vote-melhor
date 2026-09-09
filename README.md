@@ -137,4 +137,4 @@ Texto completo em [NOTICE](NOTICE).
 ---
 
 <img src="assets/marca/simbolo-compendia.svg" alt="" width="12"> © 2026 **Compendia** · [compendia.com.br](https://compendia.com.br)
-· contato@compendia.com.br · +55 34 98430-9000
+· contato@compendia.com.br · +55 34 93618-0015
