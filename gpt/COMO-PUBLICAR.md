@@ -27,13 +27,14 @@ final um total geral. Se um cache do dia já existir na sua máquina, ele é rea
 o comando termina em segundos — não rode a coleta nacional mais de uma vez no mesmo dia
 sem necessidade.
 
-O segundo lê o banco recém-coletado e grava `gpt/conhecimento/candidatos-2026.csv` e
-`gpt/conhecimento/FONTE.md`. Termina em poucos segundos e imprime `Exportado: 20005
+O segundo lê o banco recém-coletado e grava, em `gpt/conhecimento/`, os quatro arquivos do
+pacote: `candidatos-2026.csv`, `FONTE.md`, `CAMPOS.md` (o que cada campo de situação mede,
+com as contagens da base) e `FONTES.md` (os endereços oficiais conferidos). Termina em poucos segundos e imprime `Exportado: 20005
 candidatura(s) -> ...` (o número muda conforme a coleta) seguido de `Fonte escrita em
 ...`. Se sair com `RECUSADO`, pare — é o portão contra documento de identificação
 vazado, tratado em `verificar_dados.py`, e o arquivo não deve subir assim.
 
-Só depois disso a pasta `gpt/conhecimento/` existe com os dois arquivos que os passos
+Só depois disso a pasta `gpt/conhecimento/` existe com os arquivos que os passos
 abaixo usam.
 
 ## 2. Criar o GPT
@@ -59,8 +60,8 @@ tela.
 
 ## 5. Subir a base de conhecimento
 
-Em **Knowledge**, clique "Upload files" e suba os dois arquivos de
-`gpt/conhecimento/`: `candidatos-2026.csv` e `FONTE.md`. Depois de subir, os dois devem
+Em **Knowledge**, clique "Upload files" e suba os quatro arquivos de
+`gpt/conhecimento/`: `candidatos-2026.csv`, `FONTE.md`, `CAMPOS.md` e `FONTES.md`. Os quatro devem
 aparecer listados nessa seção com o tamanho do arquivo ao lado — confira que o CSV
 aparece com uns 5-6 MB (20 mil linhas), não com 0 bytes.
 
@@ -118,7 +119,7 @@ outubro de 2026). Para atualizar:
 2. `python3 ferramentas/verificar_fontes.py` — confere que cada fonte oficial ainda
    responde e grava `gpt/conhecimento/FONTES.md`. Se alguma não responder ele **não**
    grava a lista: endereço que não abre é pior que endereço nenhum.
-3. `python3 ferramentas/exportar_gpt.py` — regrava `gpt/conhecimento/candidatos-2026.csv`
+3. `python3 ferramentas/exportar_gpt.py` — regrava o CSV, o `FONTE.md` e o `CAMPOS.md``
    e `gpt/conhecimento/FONTE.md` com a nova data de coleta.
 3. Na tela **Configure** do GPT (mesmo link do passo 2), em **Knowledge**, remova o CSV
    antigo e suba o novo — o ChatGPT não atualiza arquivo já subido sozinho, é preciso

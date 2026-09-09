@@ -54,6 +54,7 @@ BANCO = os.path.join(RAIZ_DADOS, "dados", "tse.sqlite")
 DESTINO = os.path.join(RAIZ_REPO, "gpt", "conhecimento")
 CSV_SAIDA = os.path.join(DESTINO, "candidatos-2026.csv")
 FONTE_SAIDA = os.path.join(DESTINO, "FONTE.md")
+CAMPOS_SAIDA = os.path.join(DESTINO, "CAMPOS.md")
 
 URL_ORIGEM = "https://divulgacandcontas.tse.jus.br"
 LICENCA = "Creative Commons Atribuição (CC BY)"
@@ -273,6 +274,56 @@ def escrever_fonte(banco, caminho_md, total):
         fh.write("\n".join(linhas) + "\n")
 
 
+def escrever_campos(caminho, cx):
+    """Grava a referencia dos tres campos de situacao, com as contagens VINDAS DA BASE.
+
+    Por que gerado e nao escrito na instrucao: os numeros mudam a cada recoleta, e numero
+    embutido em prosa apodrece calado — o proprio plano ja tinha esse risco anotado. E a
+    instrucao tem teto de 8.000 caracteres; referencia nao disputa espaco com regra.
+
+    O terceiro campo entrou depois de um caso real, em 09/09/2026: o dono do projeto abriu o
+    site do TSE, leu "Concorrendo" e entendeu que a situacao do registro tinha mudado. Nao
+    tinha — sao perguntas diferentes na mesma tela, e a instrucao so explicava duas delas.
+    """
+    def conta(sql, *a):
+        return cx.execute(sql, a).fetchone()[0]
+
+    total = conta("SELECT COUNT(*) FROM candidatura")
+    linhas = [
+        "# Os tres campos de situacao — o que cada um responde", "",
+        f"Contagens medidas nesta base ({total} candidaturas). Sao TRES perguntas diferentes,",
+        "e o site do TSE mostra as tres na mesma tela. Confundi-las e o erro mais facil aqui.",
+        "",
+        "## descricaoSituacao — o registro da candidatura ja foi julgado?", "",
+    ]
+    for sit, n in cx.execute(
+            "SELECT descricaoSituacao, COUNT(*) FROM candidatura "
+            "GROUP BY 1 ORDER BY 2 DESC"):
+        linhas.append(f"- {n} — {sit}")
+    linhas += ["", "## descricaoTotalizacao — os votos dele serao contados?", "",
+               "**Nao e a mesma pergunta.** Uma candidatura pode estar aguardando julgamento e",
+               "ainda assim aparecer como concorrendo: o registro nao foi decidido, e enquanto",
+               "isso os votos contam. Ler `Concorrendo` como se fosse a situacao do registro e",
+               "o erro que este arquivo existe para evitar.", ""]
+    for tot, n in cx.execute(
+            "SELECT descricaoTotalizacao, COUNT(*) FROM candidatura "
+            "GROUP BY 1 ORDER BY 2 DESC"):
+        linhas.append(f"- {n} — {tot}")
+    linhas += ["", "## candidatoApto — o registro segue valendo agora?", "",
+               "Soa em portugues como \"apto a ser eleito\". **Nao e isso.** Nao mede",
+               "elegibilidade, nao mede vida pregressa, nao autoriza nenhum veredito.", ""]
+    for sit, apto, n in cx.execute(
+            "SELECT descricaoSituacao, candidatoApto, COUNT(*) FROM candidatura "
+            "GROUP BY 1,2 ORDER BY 3 DESC"):
+        linhas.append(f"- {n} — situacao \"{sit}\" com candidatoApto={apto}")
+    linhas += ["",
+               "Imprima sempre o valor literal dos tres, com a data de coleta. Nunca traduza",
+               "nenhum deles para \"pode ser eleito\", \"esta elegivel\" ou o contrario disso."]
+    with open(caminho, "w", encoding="utf-8") as f:
+        f.write("\n".join(linhas) + "\n")
+    return total
+
+
 def main():
     if not os.path.exists(BANCO):
         print(f"Banco não encontrado: {BANCO}\n"
@@ -321,6 +372,18 @@ def main():
 
     escrever_fonte(BANCO, FONTE_SAIDA, total)
 
+
+    cx = sqlite3.connect(BANCO)
+
+    try:
+
+        escrever_campos(CAMPOS_SAIDA, cx)
+
+    finally:
+
+        cx.close()
+
+    print(f"Referencia dos campos: {CAMPOS_SAIDA}")
     print(f"Exportado: {total} candidatura(s) -> {CSV_SAIDA}")
     print(f"Fonte escrita em {FONTE_SAIDA}")
     return 0
