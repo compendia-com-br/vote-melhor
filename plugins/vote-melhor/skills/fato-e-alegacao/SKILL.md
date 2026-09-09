@@ -61,7 +61,7 @@ Se o texto vier de URL, a URL foi aberta e é citada. Se não foi aberta, o text
 
 ## Erros que descaracterizam
 
-- Escrever "nada consta" onde o campo veio nulo.
+- Escrever `nada consta` onde o campo veio nulo.
 - Tratar inquérito como condenação, ou o contrário — dizer "foi inocentado" porque não há
   condenação.
 - Deixar uma alegação sem fonte no mesmo parágrafo de um fato do TSE.

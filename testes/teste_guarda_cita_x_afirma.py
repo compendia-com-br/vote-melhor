@@ -79,9 +79,6 @@ print("\nLIMITES CONHECIDOS — o que este desenho NAO pega, dito de proposito")
 # confianca falsa; a marcacao nao. Estes controles fixam o comportamento ATUAL, para que
 # uma mudanca futura apareca em vez de passar calada.
 LIMITES = [
- ("aspas sem atribuicao escondem a afirmacao",
-  'Fulano "e ficha limpa".',
-  "quem quiser fechar precisa de analise de sujeito, nao de mais uma lista"),
  ("negacao explicativa fora de aspas ainda dispara",
   "Esse campo nao diz se a pessoa esta elegivel.",
   "a guarda le a construcao, nao a negacao que a cerca"),
@@ -91,6 +88,17 @@ for nome, txt, porque in LIMITES:
     print(f"  [limite] {nome}: guarda {'acusa' if ach else 'NAO acusa'} — {porque}")
 
 print("\nA GUARDA NAO PODE FICAR CEGA — a afirmacao real da linha de base")
+# Isto era um LIMITE CONHECIDO ate 09/09/2026: aspas escondiam a afirmacao. Fechado para a
+# classe mais grave — o discriminador e o SUJEITO (nome proprio antes das aspas), nao o
+# verbo. Ver o comentario de SUJEITO no hook.
+checa("EVASAO fechada: veredito atribuido a nome proprio, entre aspas",
+      bool(g.achar('Fulano "e ficha limpa".')))
+checa("EVASAO fechada: a outra forma medida",
+      bool(g.achar('Ben Mendes "nao esta apto a ser eleito".')))
+checa("mas citacao para proibir continua passando",
+      not g.achar('Nunca escreva "e ficha limpa" na saida.'))
+checa("e alegacao com fonte continua passando",
+      not g.achar('A campanha afirma que ele "e ficha limpa" (fonte: site oficial).'))
 checa("afirmacao nua no cenario real (base-1)",
       bool(g.achar("Excelente noticia: **Alexandre Kalil e ficha limpa**.")))
 checa("pergunta do eleitor em bloco de citacao NAO e saida da ferramenta",

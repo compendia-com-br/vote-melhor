@@ -44,6 +44,10 @@ COMPARA = re.compile(
     # real da linha de base. "ficha" NAO entra: neste projeto ela e o nome da saida,
     # e "uma ficha que omite o que o eleitor mais quer" nao compara ninguem.
     r"|\b(?:curriculo|proposta|historico|trajetoria)\s+(?:\w+\s+){0,2}(?:mais|menos)\s+\w+"
+    # rotulo: "**Mais solido**: **Fulano**". Sem verbo, o comparativo antigo nao via —
+    # e essa e a forma mais direta de ranquear que a linha de base produziu. Exige nome
+    # proprio depois dos dois pontos, senao "E o mais importante: diga isso" cairia junto.
+    r"|(?:^|\n)\s*\**\s*(?:mais|menos)\s+\w+\s*\**\s*:\s*\**\s*[A-Z]"
     r"|\b(?:melhor|pior)\s+(?:candidat|opcao|escolha|nome)"
     r"|\bmais\s+(?:preparad|qualificad|confiavel|honest|competent|experient)"
     r"|\b(?:maior|menor)\s+(?:variancia|risco|chance|aposta)\s+d(?:os|as|e)\s+(?:tres|quatro|candidatos)",
@@ -76,7 +80,41 @@ VEREDITO = re.compile(
     r"\b(?:e|eh|esta|nao e|nao esta)\s+ficha\s+(?:limpa|suja)\b"
     r"|\bficha\s+(?:limpa|suja)\s*[:\-]\s*(?:sim|nao)\b"
     r"|\b(?:e|esta)\s+(?:inelegivel|elegivel)\b"
-    r"|\bnada\s+consta\b",
+    r"|\bnada\s+consta\b"
+    # a linha de base disse "nao esta apto a ser eleito" e a guarda nao viu: ela so
+    # conhecia "inelegivel". A lei nao muda porque a frase mudou de palavra.
+    r"|\b(?:nao\s+)?(?:esta|e|eh)\s+apto\s+a\s+ser\s+eleit"
+    # so a forma NEGATIVA: "se pode ser eleito" e a PERGUNTA que o eleitor faz, e a
+    # skill fato-e-alegacao a cita ao dizer quando ser usada. Afirmar que alguem NAO
+    # pode ser eleito e que a lei nao autoriza.
+    r"|\bnao\s+pode\s+ser\s+eleit",
+    re.IGNORECASE)
+
+# --- 5. prognostico eleitoral -------------------------------------------------
+# A afirmacao mais perigosa das que a linha de base produziu, e a guarda nao via nenhuma
+# delas: "seu voto nao sera computado", "a votacao sera anulada", "candidatura perdida".
+# Alem de falsa no caso medido, e o terreno que o art. 33 da Lei 9.504/97 regula — dizer
+# quem tem chance e o que a lei chama de pesquisa, e pesquisa exige registro previo no TSE.
+PROGNOSTICO = re.compile(
+    r"\bvot(?:o|acao)\s+(?:\w+\s+){0,3}(?:sera|vai\s+ser|seria)\s+(?:anulad|perdid|desperdicad)"
+    r"|\bvoto\s+(?:nao\s+)?(?:sera|vai\s+ser)\s+(?:computad|contad|valid)"
+    r"|\bcandidatura\s+perdida\b"
+    r"|\bvoto\s+(?:perdido|jogado\s+fora|desperdicado|inutil)\b"
+    r"|\bnao\s+adianta\s+votar\b"
+    r"|\bchances?\s+reais\b"
+    r"|\bsem\s+chance\s+de\s+(?:ganhar|vencer|se\s+eleger)"
+    r"|\bvai\s+(?:ganhar|vencer|perder)\s+a\s+eleicao\b",
+    re.IGNORECASE)
+
+# --- 6. juizo de capacidade ---------------------------------------------------
+# "partido nanista", "capacidade de execucao questionavel". Nada no cadastro do TSE sustenta
+# isso: e opiniao com roupa de informacao, dita sobre pessoa que esta concorrendo.
+CAPACIDADE = re.compile(
+    r"\bpartido\s+nanista\b|\bnanic[oa]\b"
+    r"|\bcapacidade\s+de\s+(?:execucao|entrega|realizacao|gestao)\s+"
+    r"(?:questionavel|duvidosa|baixa|limitada|fraca)"
+    r"|\bsem\s+estrutura\s+para\s+(?:governar|administrar|gerir)"
+    r"|\bnao\s+(?:tem|teria)\s+como\s+(?:governar|entregar|cumprir)",
     re.IGNORECASE)
 
 REGRAS = [
@@ -84,6 +122,8 @@ REGRAS = [
     (COMPARA,  "comparativo entre candidatos"),
     (NOTA,     "nota ou ranking por candidato"),
     (VEREDITO, "veredito de elegibilidade"),
+    (PROGNOSTICO, "prognostico eleitoral"),
+    (CAPACIDADE, "juizo de capacidade"),
 ]
 
 EXPLICA = {
@@ -96,6 +136,12 @@ EXPLICA = {
     "veredito de elegibilidade":
         "a LC 135/2010 exige condenacao por orgao colegiado, e isso nao e campo consultavel. "
         "Imprima a string literal do TSE.",
+    "prognostico eleitoral":
+        "dizer quem tem chance, ou que o voto se perde, e o que a Lei 9.504/97 chama de "
+        "pesquisa — e pesquisa exige registro previo no TSE. Diga a situacao, nao o desfecho.",
+    "juizo de capacidade":
+        "o cadastro do TSE nao traz nada que sustente isso. E opiniao sobre pessoa que esta "
+        "concorrendo. Diga o que ela declarou e o que ja exerceu, com a fonte.",
 }
 
 def sem_acento(t):
@@ -115,9 +161,8 @@ def sem_acento(t):
 # proprio projeto: "Nunca de ... superlativo (", "Assim nao:", "- Escrever". Lista de
 # palavras da confianca falsa; a marcacao e estrutural.
 #
-# O PRECO, dito de propria boca: `Fulano "e ficha limpa"` passa. E hole conhecido. A guarda
-# existe contra DERIVA da saida, nao contra adversario — e deriva nao poe o proprio veredito
-# entre aspas. Quem quiser fechar isso precisa de analise de sujeito, nao de mais uma lista.
+# O buraco que isso abria — atribuir um veredito a alguem e esconder atras de aspas — esta
+# fechado para a classe mais grave, o veredito de elegibilidade: ver SUJEITO abaixo.
 def mascarar_mencao(texto):
     """Apaga as regioes onde a construcao proibida esta CITADA, nao afirmada.
 
@@ -142,6 +187,18 @@ def mascarar_mencao(texto):
     return texto
 
 
+# Aspas escondem a mencao — e escondiam tambem a EVASAO: `Fulano "e ficha limpa"`. O que
+# separa os dois nao e o verbo, e o SUJEITO: citacao vem depois de dois pontos, parentese,
+# marcador de lista ou verbo minusculo ("nunca escreva", "- Escrever"); atribuicao a uma
+# pessoa vem depois de um nome proprio. Medido em 09/09/2026 sobre os 41 arquivos
+# versionados: pega as duas formas de evasao, nao pega nenhuma das cinco formas legitimas
+# de citacao, e nao acusa nenhum documento do projeto.
+#
+# Vale SO para o veredito de elegibilidade, que e a classe mais grave — a que a LC 135/2010
+# nao autoriza derivar. Para as outras, aspas continuam sendo citacao.
+SUJEITO = re.compile(r'(?:^|[^\w])[A-Z][a-z]{2,}\s+"')
+
+
 def achar(texto):
     cru = sem_acento(texto or "")
     # DOCUMENTO nao aceita a defesa de `eu estava citando`: citar `e ficha limpa` e
@@ -156,6 +213,12 @@ def achar(texto):
         for rx, detalhe in pares:
             for m in rx.finditer(fonte):
                 saida.append((rotulo, detalhe, m.group(0)[:70]))
+    # veredito de elegibilidade escondido atras de aspas, atribuido a um nome proprio
+    for m in re.finditer(r'"[^"]{0,300}"', cru, re.S):
+        ini = max(0, m.start() - 40)
+        if SUJEITO.search(cru[ini:m.start() + 1]) and VEREDITO.search(m.group(0)):
+            saida.append(("veredito de elegibilidade", "veredito de elegibilidade",
+                          m.group(0)[:70]))
     # superlativo solto: so acusa se houver candidato na mesma vizinhanca
     for m in COMPARA_FRACO.finditer(texto):
         ini = max(0, m.start() - 200)
