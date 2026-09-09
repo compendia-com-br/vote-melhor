@@ -85,11 +85,16 @@ Cada script tem `--help` com o resto das opções — buscar por nome, coletar o
 de uma vez, registro de mandato na Câmara e no Senado. Onde o dado fica está abaixo, em
 "Onde o dado fica".
 
-## Como montar no ChatGPT
+## Como montar no ChatGPT ou no claude.ai
 
 Quem não usa Claude Code pode montar um GPT personalizado com o mesmo dado e a mesma
 guarda contra recomendar voto. Passo a passo, campo por campo da tela do GPT Builder, em
 [gpt/COMO-PUBLICAR.md](gpt/COMO-PUBLICAR.md).
+
+O mesmo pacote serve as duas: as instruções não citam marca nenhuma. Para o ChatGPT, o
+passo a passo está em [gpt/COMO-PUBLICAR.md](gpt/COMO-PUBLICAR.md); para o claude.ai, em
+[gpt/COMO-MONTAR-NO-CLAUDE.md](gpt/COMO-MONTAR-NO-CLAUDE.md). Nas duas o dado é uma foto
+datada: nenhuma delas alcança o TSE ao vivo, e as duas dizem isso na cara.
 
 ## Onde o dado fica, e por que não é versionado
 
