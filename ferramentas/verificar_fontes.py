@@ -67,14 +67,38 @@ def esta_viva(cod):
     return (200 <= cod < 400) or cod in (401, 403)
 
 
+CAMINHO_ABSURDO = "/isto-nao-existe-em-lugar-nenhum-2026-vote-melhor"
+
+
+def discrimina(host, tempo=TEMPO):
+    """O dominio distingue caminho que existe de caminho inventado?
+
+    Medido em 09/09/2026, e o resultado nao e uniforme:
+      camara.leg.br e senado.leg.br  -> raiz 200, caminho inventado 404  = distingue
+      tse.jus.br e divulgacandcontas -> 403 para tudo (anti-bot)         = nao distingue
+      dadosabertos.camara.leg.br     -> 200 para tudo (API)              = nao distingue
+
+    Onde nao distingue, verificar caminho e teatro: o servidor responde igual para o
+    endereco certo e para o inventado. A saida honesta nao e "esta ok", e "so a raiz".
+    """
+    raiz, _ = bater(f"https://{host}/", tempo)
+    absurdo, _ = bater(f"https://{host}{CAMINHO_ABSURDO}", tempo)
+    return esta_viva(raiz) and not esta_viva(absurdo), raiz, absurdo
+
+
 def escrever_lista(caminho, resultados):
     linhas = ["# Fontes oficiais — as unicas URLs que esta ferramenta cita", "",
               "Cada endereco abaixo foi buscado e respondeu no dia da geracao. **Nao cite URL",
               "que nao esteja nesta lista, e nao monte caminho dentro destes dominios:** o",
               "endereco muda, e o que voce inventa da 404 para quem confiou em voce.", ""]
-    for url, porque, cod in resultados:
+    for url, porque, cod, disc in resultados:
         linhas.append(f"- {url}")
         linhas.append(f"  {porque} (respondeu {cod})")
+        if disc:
+            linhas.append("  Caminho interno pode ser conferido neste dominio.")
+        else:
+            linhas.append("  **Cite so este endereco, sem caminho depois dele.** Este servidor")
+            linhas.append("  responde igual para rota certa e rota inventada — nao da para conferir.")
     linhas.append("")
     linhas.append("Para qualquer outra coisa, diga que nao tem a fonte — nunca invente o endereco.")
     os.makedirs(os.path.dirname(caminho), exist_ok=True)
@@ -129,7 +153,10 @@ def main():
         viva = esta_viva(cod)
         print(f"  [{'ok ' if viva else 'FALHOU'}] {url:46} {cod if cod else det}")
         if viva:
-            resultados.append((url, porque, cod))
+            host = urllib.parse.urlparse(url).netloc
+            disc, r_, a_ = discrimina(host)
+            print(f"         distingue caminho inventado? {'sim' if disc else f'nao (raiz {r_}, inventado {a_})'}")
+            resultados.append((url, porque, cod, disc))
         else:
             quebradas.append((url, cod or det))
 
