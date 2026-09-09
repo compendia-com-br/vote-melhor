@@ -76,7 +76,7 @@ Redação obrigatória: quem redistribuir modificado **troca o nome**.
   Precisa estar escrito porque ferramenta de comparação é confundida com a de pesquisa.
 - **Não é propaganda eleitoral.** Não classifica, não ordena por mérito, não recomenda.
   A guarda `plugins/vote-melhor/hooks/verificar_saida.py` **detecta e sinaliza** isso em código, com controle
-  positivo e negativo calibrados, e **barra** quando `VOTE_MELHOR_ESTRITO=1`. O padrão é
+  positivo e negativo calibrados, e **barra por padrão** desde 09/09/2026 (`VOTE_MELHOR_AVISAR=1` devolve só o aviso). O padrão era
   avisar, e o texto público tem que dizer exatamente isso: falso positivo em hook que barra
   faz o usuário desligar o hook, e hook desligado não protege nada. Escrever "bloqueia" seria
   prometer o que o padrão não entrega.

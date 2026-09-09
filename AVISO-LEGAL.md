@@ -13,10 +13,10 @@ Não classifica, não pontua, não ordena por mérito e não recomenda voto. Iss
 de conduta: o hook `plugins/vote-melhor/hooks/verificar_saida.py` fiscaliza o que é **gravado
 em arquivo** (dispara em `Write` e `Edit`), com controle positivo e negativo calibrados. Ele
 **não** lê a ficha que aparece na conversa nem a saída impressa de um comando no terminal —
-só o texto que vira arquivo, como um dossiê salvo em disco. Por padrão ele **detecta e
-avisa** — imprime o achado e deixa passar. Defina `VOTE_MELHOR_ESTRITO=1` para que ele
-**barre** a gravação em vez de só avisar. O padrão é avisar porque falso positivo em hook que
-barra leva a desligar o hook, e hook desligado não protege nada.
+só o texto que vira arquivo, como um dossiê salvo em disco. Por padrão ele **barra a
+gravação** e diz o que encontrou, citando o trecho e o que escrever no lugar. Quem precisar
+apenas do aviso define `VOTE_MELHOR_AVISAR=1`, e a própria mensagem ensina isso a quem for
+barrado — hook que não deixa trabalhar é hook que o usuário desinstala.
 
 ## LGPD
 

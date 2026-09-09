@@ -303,7 +303,7 @@ Três seções, cada uma dizendo o que a ferramenta **não** é e por que precis
 - **Não é propaganda eleitoral.** Não classifica, não pontua, não ordena por mérito e não
   recomenda voto. Isso não é promessa de conduta: é **detectado e sinalizado** em código
   pelo hook `hooks/verificar_saida.py`, com controle positivo e negativo calibrados, e
-  **barrado** quando `VOTE_MELHOR_ESTRITO=1` — variável que o próprio documento precisa
+  **barrado por padrão** desde 09/09/2026 (`VOTE_MELHOR_AVISAR=1` só avisa) — variável que o próprio documento precisa
   ensinar, porque hoje ela não aparece em lugar nenhum fora do script. **Não escreva
   "bloqueia":** o padrão do hook é avisar e deixar passar (exit 0), e a razão está no
   docstring dele.

@@ -11,9 +11,20 @@ O que ele barra, na SAIDA, nunca na entrada:
   3. nota, score ou percentual de adequacao por candidato
   4. veredito de elegibilidade que a lei nao autoriza derivar
 
-Ele avisa e deixa passar (exit 0) por padrao. Com VOTE_MELHOR_ESTRITO=1 ele BARRA
-(exit 2). O padrao e avisar porque falso positivo em hook que barra faz o usuario
-desligar o hook, e hook desligado nao protege nada.
+Ele BARRA por padrao (exit 2). VOTE_MELHOR_AVISAR=1 devolve o comportamento antigo:
+imprime o achado e deixa passar (exit 0).
+
+O padrao era avisar, e o motivo escrito era que falso positivo em hook que barra faz o
+usuario desligar o hook. Medido em 09/09/2026, esse motivo caiu:
+
+  - a guarda nao dispara em saida legitima: tres fichas e um panorama de 24 KB, zero achados;
+  - o que ela acusava eram documentos do proprio projeto CITANDO a construcao proibida, e
+    isso foi separado de afirmar em 3e313a9;
+  - a ferramenta virou publica, e quem instala nao descobre sozinho uma variavel de ambiente.
+    Protecao que depende de configurar nao protege o recem-chegado, que e quem mais precisa.
+
+O escape continua existindo de proposito, e a propria mensagem o ensina: hook que nao deixa
+trabalhar e hook que o usuario desinstala, e ai nao protege ninguem.
 """
 import json, os, re, sys, unicodedata
 
@@ -176,7 +187,9 @@ def main():
     if not achados:
         return 0
 
-    estrito = os.environ.get("VOTE_MELHOR_ESTRITO") == "1"
+    # Barra por padrao. VOTE_MELHOR_ESTRITO=1 continua valendo para quem ja o usava.
+    avisar = os.environ.get("VOTE_MELHOR_AVISAR") == "1"
+    estrito = not avisar
     linhas = ["vote-melhor — a guarda de neutralidade encontrou:"]
     vistos = set()
     for rotulo, detalhe, trecho in achados:
@@ -185,6 +198,9 @@ def main():
         vistos.add(rotulo)
         linhas.append(f"  - {rotulo}: \"{trecho}\"")
         linhas.append(f"    {EXPLICA.get(rotulo,'')}")
+    if estrito:
+        linhas.append("  Isto barrou a escrita. Corrija o texto — ou, se for engano,")
+        linhas.append("  rode de novo com VOTE_MELHOR_AVISAR=1 para so avisar.")
     print("\n".join(linhas), file=sys.stderr)
     return 2 if estrito else 0
 
