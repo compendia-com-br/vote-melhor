@@ -115,7 +115,10 @@ outubro de 2026). Para atualizar:
 
 1. `python3 plugins/vote-melhor/ferramentas/coletar_tse.py --pais` — recoleta as 27 UFs
    mais BR do TSE.
-2. `python3 ferramentas/exportar_gpt.py` — regrava `gpt/conhecimento/candidatos-2026.csv`
+2. `python3 ferramentas/verificar_fontes.py` — confere que cada fonte oficial ainda
+   responde e grava `gpt/conhecimento/FONTES.md`. Se alguma não responder ele **não**
+   grava a lista: endereço que não abre é pior que endereço nenhum.
+3. `python3 ferramentas/exportar_gpt.py` — regrava `gpt/conhecimento/candidatos-2026.csv`
    e `gpt/conhecimento/FONTE.md` com a nova data de coleta.
 3. Na tela **Configure** do GPT (mesmo link do passo 2), em **Knowledge**, remova o CSV
    antigo e suba o novo — o ChatGPT não atualiza arquivo já subido sozinho, é preciso

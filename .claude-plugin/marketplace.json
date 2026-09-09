@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "Ferramentas de transparência sobre dado público brasileiro. Coleta local, sem dado embarcado, sem servidor. Uma coleção Compendia.",
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "plugins": [
     {
