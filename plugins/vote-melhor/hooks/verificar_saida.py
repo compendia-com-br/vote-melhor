@@ -266,8 +266,28 @@ def main():
         ev = json.load(sys.stdin)
     except Exception:
         return 0
-    alvo = ""
     ti = ev.get("tool_input") or {}
+
+    # PORTAO DE ESCOPO. Este hook e' `PostToolUse` com matcher `Write|Edit`, o que quer
+    # dizer TODA escrita da sessao, em qualquer projeto. A guarda e' de neutralidade
+    # ELEITORAL e so' faz sentido em material do vote-melhor.
+    #
+    # **Medido em 22/09/2026:** ele barrou a escrita de um plano tecnico de OCR no acervo
+    # Compendia porque a frase dizia «o marcador mais confiavel da pagina» — leu um
+    # comparativo sobre projecao de pixels como se fosse comparativo entre candidatos. O
+    # texto nao tinha nada de eleitoral, e o autor perdeu uma rodada reescrevendo.
+    #
+    # Falso positivo em hook que BARRA nao e' incomodo: e' uma ferramenta de um projeto
+    # ditando o vocabulario de todos os outros. O escopo agora e' o caminho do arquivo.
+    caminho = ""
+    for k in ("file_path", "filePath", "path", "notebook_path"):
+        if isinstance(ti.get(k), str):
+            caminho = ti[k]
+            break
+    if caminho and "vote-melhor" not in caminho.replace("\\", "/"):
+        return 0
+
+    alvo = ""
     for k in ("content", "new_string", "command"):
         if isinstance(ti.get(k), str):
             alvo += ti[k] + "\n"
