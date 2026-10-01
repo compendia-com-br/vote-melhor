@@ -39,9 +39,12 @@ A pasta não vem no repositório clonado, de propósito: o dado nasce na sua má
 
 ## O que NÃO funciona aqui, e por quê
 
-**Consulta ao vivo no TSE.** O site recusa acesso automatizado — o bloqueio é por ordem de
-cabeçalho e devolve 403 até para a casca do aplicativo. Medido em 09/09/2026, e a navegação
-do ChatGPT não passou. Se a do Claude passar, é novidade e vale medir (ver o teste abaixo).
+**Consulta ao vivo no TSE.** O site recusa boa parte do acesso automatizado: `curl`, a
+busca do Claude Code e a navegação do ChatGPT levaram 403 (medido em 09/09/2026). A
+navegação do claude.ai **chegou** — levou 200 —, mas o que volta é só a casca do
+aplicativo: os dados do candidato entram por chamadas que a leitura da página não
+executa. Ou seja: **alcança, mas não lê**. Por isso o pacote vive do CSV exportado, não de
+navegação ao vivo (o teste abaixo mede isso de novo).
 
 **A guarda em código.** O hook `verificar_saida.py` é do Claude Code e não roda no
 navegador. Aqui as guardas são o texto da instrução — que foi testado contra sete cenários
