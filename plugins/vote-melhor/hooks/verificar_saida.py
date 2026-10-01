@@ -11,8 +11,9 @@ O que ele barra, na SAIDA, nunca na entrada:
   3. nota, score ou percentual de adequacao por candidato
   4. veredito de elegibilidade que a lei nao autoriza derivar
 
-Ele BARRA por padrao (exit 2). VOTE_MELHOR_AVISAR=1 devolve o comportamento antigo:
-imprime o achado e deixa passar (exit 0).
+Ele AVISA por padrao (exit 0, JSON com systemMessage e additionalContext), por decisao
+do Thiago em 30/09/2026. VOTE_MELHOR_ESTRITO=1 faz barrar (exit 2). O historico abaixo
+explica por que ele barrou de 09/09 a 30/09.
 
 O padrao era avisar, e o motivo escrito era que falso positivo em hook que barra faz o
 usuario desligar o hook. Medido em 09/09/2026, esse motivo caiu:
@@ -303,9 +304,14 @@ def main():
     if not achados:
         return 0
 
-    # Barra por padrao. VOTE_MELHOR_ESTRITO=1 continua valendo para quem ja o usava.
-    avisar = os.environ.get("VOTE_MELHOR_AVISAR") == "1"
-    estrito = not avisar
+    # AVISA por padrao (decisao do Thiago, 30/09/2026: «avisar»). VOTE_MELHOR_ESTRITO=1
+    # volta a barrar (exit 2) para quem quiser. VOTE_MELHOR_AVISAR=1 segue aceito, inerte.
+    #
+    # Como se avisa sem barrar, conferido na documentacao de hooks do Claude Code: em
+    # saida 0, stderr e texto solto no stdout vao so para o log de depuracao — ninguem ve.
+    # O que aparece e o JSON no stdout: `systemMessage` sai para o usuario na conversa, e
+    # `hookSpecificOutput.additionalContext` chega ao Claude ao lado do resultado.
+    estrito = os.environ.get("VOTE_MELHOR_ESTRITO") == "1"
     linhas = ["vote-melhor — a guarda de neutralidade encontrou:"]
     vistos = set()
     for rotulo, detalhe, trecho in achados:
@@ -315,10 +321,17 @@ def main():
         linhas.append(f"  - {rotulo}: \"{trecho}\"")
         linhas.append(f"    {EXPLICA.get(rotulo,'')}")
     if estrito:
-        linhas.append("  Isto barrou a escrita. Corrija o texto — ou, se for engano,")
-        linhas.append("  rode de novo com VOTE_MELHOR_AVISAR=1 para so avisar.")
-    print("\n".join(linhas), file=sys.stderr)
-    return 2 if estrito else 0
+        linhas.append("  Isto barrou a escrita (VOTE_MELHOR_ESTRITO=1). Corrija o texto.")
+        print("\n".join(linhas), file=sys.stderr)
+        return 2
+    linhas.append("  Aviso apenas: a escrita foi mantida. Corrija o texto antes de publicar.")
+    msg = "\n".join(linhas)
+    print(json.dumps({
+        "systemMessage": msg,
+        "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": msg},
+    }, ensure_ascii=False))
+    print(msg, file=sys.stderr)
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())
