@@ -41,6 +41,7 @@ for nome, txt in [
  ("Senado",                        "Veja https://www25.senado.leg.br/web/senadores."),
  ("API que as ferramentas usam",   "fonte: https://dadosabertos.camara.leg.br/api/v2/deputados"),
  ("API do Senado",                 "fonte: https://legis.senado.leg.br/dadosabertos/senador/lista/atual"),
+ ("API da ALMG",                   "fonte: https://dadosabertos.almg.gov.br/api/v2/deputados/em_exercicio"),
  ("dominio que nao finge ser oficial", "Leia mais em https://exemplo.com.br/materia."),
 ]:
     ach = g.achar(txt)

@@ -45,8 +45,8 @@ python3 "$F/criterios.py"   --cruzar <id> <id>
 ```
 
 **Registro de mandato depende do cargo: Senador vai para `senado.py`, Deputado Federal vai
-para `camara.py`.** Os demais cargos — deputado estadual, governador, presidente — não têm
-fonte de mandato nesta ferramenta; diga isso em vez de deixar a célula vazia sem explicação.
+para `camara.py`, Deputado Estadual de MG vai para `almg.py`.** Os demais — deputado
+estadual de outra UF, governador, presidente — não têm fonte de mandato nesta ferramenta; diga isso em vez de deixar a célula vazia sem explicação.
 
 **`--idade` vem antes de tudo, e o código de saída manda.** Se ele sair 2, a base venceu:
 pare e diga isso. Não monte dossiê sobre dado que a própria ferramenta recusou.

@@ -91,9 +91,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/camara.py" --cobertura --uf <UF>
 python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/senado.py" --buscar "<nome>" --uf <UF>
 python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/senado.py" --registro <codigo>
 python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/senado.py" --cobertura --uf <UF>
+
+# cargo Deputado Estadual, SÓ em MG -> almg.py
+python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/almg.py" --buscar "<nome>"
+python3 "${CLAUDE_PLUGIN_ROOT}/ferramentas/almg.py" --proposicoes <id> --termo <palavra>
 ```
 
-Os demais cargos — deputado estadual, governador, presidente — **não têm fonte de mandato
+Deputado estadual **de MG** tem fonte (a Assembleia de Minas, legislaturas 2019–2027).
+Deputado estadual das outras 26 UFs, governador e presidente **não têm fonte de mandato
 nesta ferramenta**. Isso se declara, não se contorna: nunca busque um substituto para o eixo.
 
 Rode `--cobertura` **antes** de mostrar qualquer comparação, e diga o resultado: o eixo de

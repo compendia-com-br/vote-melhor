@@ -45,7 +45,8 @@ nenhuma — tudo que existir para eles é material de campanha, ou seja, alegaç
 ou vai parecer que faltou coletar.
 
 **Atuação parlamentar** — a Câmara dos Deputados publica proposições e votações em API
-aberta. Vale para quem já é deputado federal. Assembleias estaduais não têm padrão.
+aberta. Vale para quem já é deputado federal. Assembleias estaduais não têm padrão; a de Minas
+(ALMG) tem API aberta e está coberta por `almg.py`. As outras 26 não.
 
 **Notícia** — entra como alegação, sempre com a fonte e a data, e sempre passando pela
 escada da skill `fato-e-alegacao` antes de virar frase.

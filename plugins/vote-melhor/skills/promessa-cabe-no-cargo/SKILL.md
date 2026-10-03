@@ -39,7 +39,7 @@ sabe e conta com quem lê não saber.
 Esta se responde mal, e é preciso dizer por quê.
 
 Registro de mandato existe em API para **deputado federal e senador**. Para deputado
-estadual, está em 27 assembleias sem padrão. Para governador e presidente, o histórico é
+estadual, está em 27 assembleias sem padrão — só a de Minas está coberta (`almg.py`). Para governador e presidente, o histórico é
 executivo e não está nessa fonte.
 
 **Consequência que muda a leitura:** num quadro comparativo, célula vazia é lida como *sem

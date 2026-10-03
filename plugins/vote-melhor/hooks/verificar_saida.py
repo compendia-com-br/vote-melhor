@@ -135,6 +135,8 @@ OFICIAIS = {
     # endpoints que as ferramentas deste projeto usam
     "dadosabertos.camara.leg.br", "legis.senado.leg.br",
     "dadosabertos.tse.jus.br", "cdn.tse.jus.br",
+    # ALMG, deputado estadual de MG — ferramentas/almg.py, medido em 03/10/2026
+    "dadosabertos.almg.gov.br",
 }
 AUTORIDADE = (".leg.br", ".jus.br", ".gov.br")
 URL = re.compile(r"https?://([^\s/)\"'<>\]]+)")

@@ -16,7 +16,8 @@ O QUE ESTE SCRIPT NUNCA FAZ, e por quê:
 O que ele FAZ: para cada eixo declarado, mostra o material verificável que existe
 sobre aquele candidato naquele eixo, com a fonte. Quem julga é quem lê.
 """
-import argparse, json, os, re, sqlite3, sys, time, unicodedata, urllib.parse, urllib.request
+import argparse, json, os, re, sqlite3, sys, time, unicodedata
+import urllib.error, urllib.parse, urllib.request
 
 # Diretorio REAL deste arquivo. As mensagens de recuperacao montam o comando a
 # partir daqui, e nao de um caminho escrito a mao: "ferramentas/x.py" nao
@@ -44,7 +45,7 @@ def limpar(t):
 ONDE_HA_MATERIAL = {
     "cadastro": "registro de candidatura no TSE (partido, cargo, situação, bens, ocupação)",
     "proposta": "proposta de governo protocolada — SÓ para cargo executivo, por lei",
-    "mandato":  "registro de mandato federal — SÓ deputado federal e senador",
+    "mandato":  "registro de mandato — deputado federal, senador e, SÓ em MG, deputado estadual (ALMG)",
 }
 
 AVISO_PROPOSTA = (
@@ -106,6 +107,10 @@ API_CAMARA = "https://dadosabertos.camara.leg.br/api/v2"
 sys.dont_write_bytecode = True
 sys.path.insert(0, _AQUI)
 import senado as _senado
+# Deputado ESTADUAL esta em 27 assembleias sem padrao comum. So a de Minas
+# Gerais e consultada, por almg.py; para as outras UFs a saida diz que a
+# assembleia daquela UF nao e coberta — lacuna de COBERTURA, nao de material.
+import almg as _almg
 
 
 def _get(url):
@@ -117,16 +122,36 @@ def _get(url):
         return json.loads(r.read().decode("utf-8"))
 
 
+def _descrever(e):
+    if isinstance(e, urllib.error.HTTPError):
+        return f"HTTP {e.code}"
+    if isinstance(e, urllib.error.URLError):
+        return f"rede: {e.reason}"
+    return f"rede: {type(e).__name__}"
+
+
 def achar_deputado(nome, uf):
     """Casa o candidato do TSE com o deputado em exercicio, por nome e UF.
 
     A juncao e por NOME, nao por CPF — o banco nao guarda CPF. Nome nao e chave:
     homonimo existe. Por isso o resultado sai marcado como juncao a conferir, e
     nunca como fato sobre a pessoa."""
+    # Antes era `except Exception` com uma frase fixa: qualquer coisa — rede,
+    # HTTP 5xx, corpo fora do formato, ate defeito de codigo — saia como "nao
+    # consegui consultar a Camara agora", e nao havia como saber qual. Em
+    # 03/10/2026 a API respondia 200 e achava Nikolas Ferreira (id 209787) com
+    # esta mesma funcao; a falha relatada antes nao se reproduziu, e a mensagem
+    # fixa nao deixava ver a causa. Agora a falha de transporte diz qual foi, e
+    # defeito de codigo sobe como traceback em vez de se disfarcar de rede.
+    url = f"{API_CAMARA}/deputados?siglaUf={uf}&itens=100"
     try:
-        d = _get(f"{API_CAMARA}/deputados?siglaUf={uf}&itens=100")
-    except Exception:
-        return None, "nao consegui consultar a Camara agora"
+        d = _get(url)
+    except _almg.FALHAS_DE_TRANSPORTE as e:
+        return None, f"nao consegui consultar a Camara agora ({_descrever(e)})"
+    except ValueError:
+        return None, "a Camara respondeu algo que nao e JSON — falha de CONSULTA"
+    if not isinstance(d, dict) or not isinstance(d.get("dados"), list):
+        return None, "a Camara respondeu fora do formato medido — falha de CONSULTA"
     alvo = limpar(nome)
     exatos = [x for x in d["dados"] if limpar(x["nome"]) == alvo]
     if len(exatos) == 1:
@@ -207,6 +232,7 @@ def cmd_cruzar(ids):
         eh_dep_federal = limpar(cargo) == "deputado federal"
         eh_senador     = limpar(cargo) == "senador"
         federal        = eh_dep_federal or eh_senador
+        eh_dep_estadual = limpar(cargo) in ("deputado estadual", "deputado distrital")
 
         # Deputado federal casa com a Camara; senador casa com o Senado — casas
         # diferentes, fontes diferentes. Chamar a Camara para um candidato ao
@@ -226,6 +252,27 @@ def cmd_cruzar(ids):
                 print(f"  registro federal: id {cod} ({motivo}) — fonte: {fonte}")
             else:
                 print(f"  registro federal: nao localizado — {motivo}")
+
+        # Deputado estadual: so MG tem fonte consultada (ALMG). estado_almg
+        # separa "nao achado" de "a ALMG nao respondeu" — as duas coisas nao
+        # podem sair com a mesma frase.
+        estado_almg = None
+        if eh_dep_estadual and uf == "MG":
+            estado_almg, achados, motivo = _almg.achar(nome)
+            if estado_almg == "achei":
+                reg, casa = achados[0], "almg"
+                print(f"  registro estadual: id ALMG {reg['id']} ({motivo}) — fonte: ALMG")
+                print(f"    {'; '.join(reg['situacoes'])}")
+            elif estado_almg == "homonimos":
+                nomes = ", ".join(f"{x['nome']} (id {x['id']})" for x in achados)
+                print(f"  registro estadual: {motivo}: {nomes}")
+            elif estado_almg == "falha":
+                print(f"  registro estadual: NAO CONSULTADO — {motivo}")
+            else:
+                print(f"  registro estadual: nao localizado — {motivo}")
+        elif eh_dep_estadual:
+            print(f"  registro estadual: a assembleia de {uf or 'sem UF'} nao e consultada")
+            print("    por esta ferramenta (so a ALMG, de MG, e). Lacuna de COBERTURA.")
         print()
 
         for e in eixos:
@@ -246,6 +293,32 @@ def cmd_cruzar(ids):
                     print("    nenhuma proposicao de autoria indexada sob essa palavra.")
                     print("    Isso e ausencia de PROPOSICAO COM ESSE TERMO, nao ausencia de")
                     print("    atuacao: a busca e por termo indexado, nao por tema.")
+            elif reg and casa == "almg":
+                try:
+                    r = _almg.proposicoes(reg["id"], reg["nome"], e)
+                except _almg.FalhaDeConsulta as erro:
+                    print(f"    nao consegui consultar a ALMG agora ({erro}).")
+                    print("    Isso e falha de CONSULTA, nao ausencia de material.")
+                    print()
+                    continue
+                if r["itens"]:
+                    print(f"    proposicoes da ALMG sob \"{limpar(e)}\": {_almg.resumo(r)}")
+                    print("    as de publicacao mais recente:")
+                    for x in r["itens"]:
+                        print(f"      {_almg.linha_item(x)}")
+                    print(f"    fonte: {r['url']}")
+                    if r["devolvidos"] < 5:
+                        print("    Poucos resultados podem ser efeito do TERMO, nao do tema: a busca")
+                        print(f"    e por palavra indexada. Outro termo: almg.py --proposicoes {reg['id']} --termo <palavra>")
+                else:
+                    print(f"    nenhuma proposicao com este deputado na autoria sob \"{limpar(e)}\".")
+                    print("    Isso e ausencia de PROPOSICAO COM ESSE TERMO, nao ausencia de")
+                    print("    atuacao: a busca e por termo indexado, nao por tema.")
+                    print(f"    fonte: {r['url']}")
+                    print(f"    Outro termo: almg.py --proposicoes {reg['id']} --termo <palavra>")
+            elif estado_almg == "falha":
+                print("    a consulta a ALMG falhou: nada se conclui sobre este eixo.")
+                print("    E falha de CONSULTA, nao ausencia de material nem juizo sobre a pessoa.")
             elif reg and casa == "senado":
                 cod = reg.get("IdentificacaoParlamentar", {}).get("CodigoParlamentar", "?")
                 print("    o Senado nao tem busca por palavra-chave igual a da Camara —")
@@ -263,10 +336,13 @@ def cmd_cruzar(ids):
     print()
     print("A busca de proposicao usa o indexador da Camara, que casa por termo")
     print("indexado — nem sempre a palavra aparece na ementa visivel. Leia a ementa")
-    print("antes de afirmar que a proposicao trata do seu eixo. Ela so existe para")
-    print("deputado federal: o cruzamento por eixo com o Senado ainda nao existe.")
+    print("antes de afirmar que a proposicao trata do seu eixo. Ela existe para")
+    print("deputado federal (Camara) e deputado estadual de MG (ALMG); o cruzamento")
+    print("por eixo com o Senado e com as outras 26 assembleias ainda nao existe.")
+    print("Na ALMG o eixo vai inteiro como termo de busca; a autoria e conferida")
+    print("pelo id do deputado em cada item, e coautoria coletiva vem marcada.")
     print()
-    print("A juncao com a Camara e com o Senado e feita por NOME, nao por CPF. Nome")
+    print("A juncao com a Camara, o Senado e a ALMG e feita por NOME, nao por CPF. Nome")
     print("nao e chave: homonimo existe. Confira que e a mesma pessoa antes de usar")
     print("o registro.")
     print()
