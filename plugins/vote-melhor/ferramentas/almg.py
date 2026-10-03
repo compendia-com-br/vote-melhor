@@ -83,6 +83,13 @@ import argparse, http.client, json, os, re, socket, sys, time, unicodedata
 import urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone
 
+# Modulo irmao: a regra de juncao por nome e uma so para ALMG, Camara e Senado.
+# dont_write_bytecode antes do import — esta pasta viaja inteira na
+# distribuicao e nao pode levar __pycache__.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import juncao as _juncao
+
 API = "https://dadosabertos.almg.gov.br/api/v2"
 RAIZ = os.environ.get("VOTE_MELHOR_DADOS") or os.path.join(
     os.path.expanduser("~"), ".local", "share", "vote-melhor")
@@ -207,31 +214,16 @@ def listar_deputados(forcar=False):
     return list(por_id.values()), urls
 
 
-def _contem(a, b):
-    """a contem b como PALAVRAS inteiras — "ana" nao casa dentro de "mariana"."""
-    return f" {b} " in f" {a} "
-
-
 def casar(nome, deputados):
     """Casa o nome de urna do TSE com a lista da ALMG. Devolve (estado, achados, motivo).
 
-    estado: "achei" | "homonimos" | "nao_achado". Nome nao e chave: se mais de
-    um deputado casa, a funcao diz isso e nao escolhe."""
-    alvo = limpar(nome)
-    if not alvo:
-        return "nao_achado", [], "nome vazio"
-    exatos = [d for d in deputados if limpar(d["nome"]) == alvo]
-    if len(exatos) == 1:
-        return "achei", exatos, "nome identico"
-    if len(exatos) > 1:
-        return "homonimos", exatos, f"{len(exatos)} deputados com o mesmo nome — juncao incerta, nao afirmo nada"
-    parciais = [d for d in deputados
-                if _contem(limpar(d["nome"]), alvo) or _contem(alvo, limpar(d["nome"]))]
-    if len(parciais) == 1:
-        return "achei", parciais, "nome parcial — CONFERIR se e a mesma pessoa"
-    if len(parciais) > 1:
-        return "homonimos", parciais, f"{len(parciais)} nomes parecidos — juncao incerta, nao afirmo nada"
-    return "nao_achado", [], "nao consta nas listas da ALMG das legislaturas 19 e 20"
+    estado: "achei" | "homonimos" | "parcial" | "nao_achado". So "achei" liga
+    registro — a regra (e o porque medido) esta em juncao.py, a mesma para
+    ALMG, Camara e Senado."""
+    estado, achados, motivo = _juncao.casar(nome, deputados, lambda d: d["nome"])
+    if estado == "nao_achado" and motivo == "sem parlamentar de nome identico":
+        motivo = "nao consta nas listas da ALMG das legislaturas 19 e 20"
+    return estado, achados, motivo
 
 
 def achar(nome, forcar=False):

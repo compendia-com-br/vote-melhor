@@ -111,6 +111,7 @@ import senado as _senado
 # Gerais e consultada, por almg.py; para as outras UFs a saida diz que a
 # assembleia daquela UF nao e coberta — lacuna de COBERTURA, nao de material.
 import almg as _almg
+import juncao as _juncao
 
 
 def _get(url):
@@ -128,6 +129,23 @@ def _descrever(e):
     if isinstance(e, urllib.error.URLError):
         return f"rede: {e.reason}"
     return f"rede: {type(e).__name__}"
+
+
+def _ligar(nome, itens, nome_de, id_de, comando, motivo_ausente):
+    """(registro ou None, motivo) pela regra de juncao.py. So nome identico
+    devolve registro; parecido aparece no motivo, com o id para consulta
+    manual, e NUNCA puxa proposicao de outra pessoa."""
+    estado, achados, motivo = _juncao.casar(nome, itens, nome_de)
+    if estado == "achei":
+        return achados[0], motivo
+    if estado == "parcial":
+        lista = ", ".join(f"{nome_de(x)} (id {id_de(x)})" for x in achados)
+        return None, f"{motivo}: {lista} — use {comando} <id> se for a mesma pessoa"
+    if estado == "homonimos":
+        return None, motivo
+    if motivo.startswith("nome de uma palavra"):
+        return None, f"{motivo_ausente} ({motivo})"
+    return None, motivo_ausente
 
 
 def achar_deputado(nome, uf):
@@ -152,17 +170,8 @@ def achar_deputado(nome, uf):
         return None, "a Camara respondeu algo que nao e JSON — falha de CONSULTA"
     if not isinstance(d, dict) or not isinstance(d.get("dados"), list):
         return None, "a Camara respondeu fora do formato medido — falha de CONSULTA"
-    alvo = limpar(nome)
-    exatos = [x for x in d["dados"] if limpar(x["nome"]) == alvo]
-    if len(exatos) == 1:
-        return exatos[0], "nome identico"
-    parciais = [x for x in d["dados"]
-                if alvo in limpar(x["nome"]) or limpar(x["nome"]) in alvo]
-    if len(parciais) == 1:
-        return parciais[0], "nome parcial — CONFERIR se e a mesma pessoa"
-    if len(parciais) > 1:
-        return None, f"{len(parciais)} homonimos — juncao incerta, nao afirmo nada"
-    return None, "nao esta entre os deputados em exercicio hoje"
+    return _ligar(nome, d["dados"], lambda x: x["nome"], lambda x: x["id"],
+                  "camara.py --registro", "nao esta entre os deputados em exercicio hoje")
 
 
 def achar_senador(nome, uf):
@@ -177,17 +186,10 @@ def achar_senador(nome, uf):
     except Exception:
         return None, "nao consegui consultar o Senado agora"
     lista = _senado.caminhar(d, "ListaParlamentarEmExercicio", "Parlamentares", "Parlamentar")
-    nome_de = lambda p: limpar(p.get("IdentificacaoParlamentar", {}).get("NomeParlamentar", ""))
-    alvo = limpar(nome)
-    exatos = [p for p in lista if nome_de(p) == alvo]
-    if len(exatos) == 1:
-        return exatos[0], "nome identico"
-    parciais = [p for p in lista if alvo in nome_de(p) or nome_de(p) in alvo]
-    if len(parciais) == 1:
-        return parciais[0], "nome parcial — CONFERIR se e a mesma pessoa"
-    if len(parciais) > 1:
-        return None, f"{len(parciais)} homonimos — juncao incerta, nao afirmo nada"
-    return None, "nao esta entre os senadores em exercicio hoje"
+    nome_cru = lambda p: p.get("IdentificacaoParlamentar", {}).get("NomeParlamentar", "")
+    codigo = lambda p: p.get("IdentificacaoParlamentar", {}).get("CodigoParlamentar", "?")
+    return _ligar(nome, lista, nome_cru, codigo,
+                  "senado.py --registro", "nao esta entre os senadores em exercicio hoje")
 
 
 def proposicoes_do_eixo(id_dep, eixo, limite=3):
@@ -263,9 +265,11 @@ def cmd_cruzar(ids):
                 reg, casa = achados[0], "almg"
                 print(f"  registro estadual: id ALMG {reg['id']} ({motivo}) — fonte: ALMG")
                 print(f"    {'; '.join(reg['situacoes'])}")
-            elif estado_almg == "homonimos":
+            elif estado_almg in ("homonimos", "parcial"):
                 nomes = ", ".join(f"{x['nome']} (id {x['id']})" for x in achados)
                 print(f"  registro estadual: {motivo}: {nomes}")
+                if estado_almg == "parcial":
+                    print("    se for a mesma pessoa: almg.py --proposicoes <id> --termo <palavra>")
             elif estado_almg == "falha":
                 print(f"  registro estadual: NAO CONSULTADO — {motivo}")
             else:

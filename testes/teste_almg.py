@@ -60,7 +60,12 @@ checa("nome identico, caixa diferente -> achei", e == "achei" and a[0]["id"] == 
 e, a, m = almg.casar("MARIO EXEMPLO", DEPS)
 checa("TSE sem acento casa ALMG com acento", e == "achei" and a[0]["id"] == 4, m)
 e, a, m = almg.casar("BELTRANO", DEPS)
-checa("dois nomes parecidos -> homonimos, nao escolhe", e == "homonimos" and len(a) == 2, m)
+# Nome de uma palavra so nao casa por semelhanca (regra em juncao.py, medida em
+# 03/10/2026: "SILVA" ia para Arnaldo Silva). Antes isto dava "homonimos".
+checa("nome de uma palavra so nao casa por semelhanca", e == "nao_achado" and not a, m)
+e, a, m = almg.casar("Beltrano Teste Neto", DEPS)
+checa("nome parecido de duas+ palavras -> parcial, nao liga",
+      e == "parcial" and [x["id"] for x in a] == [2], m)
 e, a, m = almg.casar("Beltrano Teste", DEPS)
 checa("nome exato vence o parcial mais longo", e == "achei" and a[0]["id"] == 2, m)
 e, a, m = almg.casar("Zzqx Inventado Silva", DEPS)
@@ -236,8 +241,11 @@ else:
         e, a, m = almg.achar("ZZQX INVENTADO SILVA")
         checa("controle negativo: nome inventado -> nao_achado", e == "nao_achado", m)
         e, a, m = almg.achar("HENRIQUE")
-        checa("homonimo real: 'Henrique' -> homonimos, nao escolhe",
-              e == "homonimos" and len(a) >= 2, f"{m}: {[x['nome'] for x in a]}")
+        checa("nome real de uma palavra ('Henrique') nao liga ninguem",
+              e != "achei" and not a, m)
+        e, a, m = almg.achar("MÁRIO HENRIQUE")
+        checa("nome real parecido ('Mário Henrique') -> parcial, nao liga",
+              e == "parcial" and any("Caixa" in x["nome"] for x in a), f"{e} — {[x['nome'] for x in a]}")
 
 print()
 if falhas:
